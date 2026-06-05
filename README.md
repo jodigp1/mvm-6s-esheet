@@ -1,6 +1,6 @@
 # 6S Audit MVM
 
-Sistem audit 6S lingkungan kerja PT Asahimas Chemical.
+Sistem audit 6S lingkungan kerja
 
 ## Stack
 - **Frontend/Backend**: Next.js 14 App Router
