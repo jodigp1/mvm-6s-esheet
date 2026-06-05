@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-surface text-ink min-h-screen;
+    background-image: radial-gradient(ellipse 70% 50% at 10% -10%, rgba(124,110,245,.12) 0%, transparent 60%);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply bg-white rounded-3xl shadow-card border border-surface-border;
+  }
+
+  .card-head {
+    @apply px-5 py-4 border-b border-surface-border rounded-t-3xl;
+    background: linear-gradient(135deg, #FAF9FF, #FFFFFF);
+  }
+
+  /* Segmented control */
+  .segmented {
+    @apply relative flex bg-[#E8E6FF] rounded-2xl p-1 border border-surface-border;
+  }
+
+  .segmented-slider {
+    @apply absolute top-1 bottom-1 left-1 bg-white rounded-xl transition-transform duration-[250ms];
+    box-shadow: 0 3px 10px rgba(124, 110, 245, 0.16);
+  }
+
+  .segmented-btn {
+    @apply relative z-10 flex-1 py-2.5 text-xs font-extrabold text-ink-2 rounded-xl transition-colors duration-200 flex items-center justify-center gap-1.5 border-none cursor-pointer bg-transparent;
+  }
+
+  .segmented-btn.active {
+    @apply text-brand;
+  }
+
+  /* Input */
+  .inp {
+    @apply w-full px-4 py-3 border-[1.5px] border-surface-border rounded-2xl text-sm text-ink bg-white outline-none transition-all font-sans;
+  }
+
+  .inp:focus {
+    @apply border-brand ring-2 ring-brand/10;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply px-5 py-3 rounded-2xl text-sm font-bold text-white border-none cursor-pointer transition-all;
+    background: linear-gradient(135deg, #7C6EF5, #9F95F7);
+  }
+
+  .btn-primary:hover {
+    @apply -translate-y-0.5 shadow-card-hover;
+  }
+
+  .btn-secondary {
+    @apply px-5 py-3 rounded-2xl text-sm font-bold bg-white text-ink-2 border-[1.5px] border-surface-border cursor-pointer transition-all;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-brand-pale border-brand text-brand -translate-y-0.5;
+  }
+
+  /* Badge kategori */
+  .badge-ex {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-ex-light text-ex;
+  }
+
+  .badge-sd {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-yellow-light text-yellow;
+  }
+
+  .badge-ni {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-danger-light text-danger;
+  }
+
+  /* Icon wrapper */
+  .ico-wrap {
+    @apply w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0;
+  }
+
+  .ico-brand {
+    @apply bg-brand-pale text-brand;
+  }
+
+  /* Animation */
+  .fade-up {
+    animation: fadeUp 0.35s ease both;
+  }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #E8E6FF; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
