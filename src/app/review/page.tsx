@@ -74,6 +74,7 @@ export default function ReviewPage() {
 
   // ── Export Excel ──────────────────────────────────────────────
   async function exportExcel() {
+    if (!session) return
     const XLSX = await import('xlsx')
 
     // Sheet 1: Summary
@@ -113,6 +114,7 @@ export default function ReviewPage() {
 
   // ── Export PDF ────────────────────────────────────────────────
   async function exportPDF() {
+    if (!session) return
     const { default: jsPDF }     = await import('jspdf')
     const { default: autoTable } = await import('jspdf-autotable')
 
