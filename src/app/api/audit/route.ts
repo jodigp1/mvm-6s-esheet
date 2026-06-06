@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
 
   const { error } = await sb
     .from('audit_sessions')
-    .update({ status: 'completed', waktu_proses, avg_score_pct: avg } as any)
+    .update({ status: 'completed', waktu_proses, avg_score_pct: avg } as unknown as never)
     .eq('id', session_id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
