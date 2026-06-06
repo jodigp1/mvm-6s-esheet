@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const rows = results ?? []
+  const rows = (results ?? []) as any[]
 
   // ── 1. KPI ────────────────────────────────────────────────────
   const nonSkipped    = rows.filter(r => !r.skipped)
