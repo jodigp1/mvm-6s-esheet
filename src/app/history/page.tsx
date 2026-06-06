@@ -25,7 +25,10 @@ export default function HistoryPage() {
   const [filterLokasi,   setFilterLokasi]   = useState('ALL')
   const [filterBulan,    setFilterBulan]    = useState('ALL')
   const [filterKategori, setFilterKategori] = useState('ALL')
-  const [search,         setSearch]         = useState('')
+  const [sortOrder,      setSortOrder]      = useState<'newest' | 'oldest'>('newest')
+
+  // Delete confirm modal
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   // Detail modal
   const [detail, setDetail]                 = useState<SessionWithLokasi | null>(null)
@@ -40,7 +43,8 @@ export default function HistoryPage() {
         .from('audit_sessions')
         .select('*, lokasi(nama, kode), audit_results(id, skipped, kategori)')
         .eq('status', 'completed')
-        .order('tanggal', { ascending: false }),
+        .order('tanggal', { ascending: false })
+        .order('created_at', { ascending: false }),
       supabase.from('lokasi').select('*').eq('aktif', true).order('nama'),
     ]).then(([{ data: s }, { data: l }]) => {
       if (s) setSessions(s as SessionWithLokasi[])
@@ -50,7 +54,7 @@ export default function HistoryPage() {
   }, [])
 
   const filtered = useMemo(() => {
-    return sessions.filter(s => {
+    const arr = sessions.filter(s => {
       if (filterLokasi !== 'ALL' && s.lokasi_id !== filterLokasi) return false
       if (filterBulan  !== 'ALL') {
         const bln = new Date(s.tanggal + 'T00:00:00').getMonth()
@@ -60,17 +64,11 @@ export default function HistoryPage() {
         const hasKat = s.audit_results.some(r => r.kategori === filterKategori)
         if (!hasKat) return false
       }
-      if (search.trim()) {
-        const q = search.toLowerCase()
-        const matchAuditor = (s.auditor1 + ' ' + (s.auditor2 ?? '')).toLowerCase().includes(q)
-        const matchLokasi  = s.lokasi.nama.toLowerCase().includes(q)
-        const matchTanggal = s.tanggal.includes(q)
-        const matchBulan   = BULAN_ID[new Date(s.tanggal + 'T00:00:00').getMonth()].toLowerCase().includes(q)
-        if (!matchAuditor && !matchLokasi && !matchTanggal && !matchBulan) return false
-      }
       return true
     })
-  }, [sessions, filterLokasi, filterBulan, filterKategori, search])
+    if (sortOrder === 'oldest') arr.reverse()
+    return arr
+  }, [sessions, filterLokasi, filterBulan, filterKategori, sortOrder])
 
   async function openDetail(s: SessionWithLokasi) {
     setDetail(s)
@@ -88,11 +86,12 @@ export default function HistoryPage() {
     setDetailLoading(false)
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Hapus riwayat audit ini?')) return
-    await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
-    setSessions(prev => prev.filter(s => s.id !== id))
-    if (detail?.id === id) setDetail(null)
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    await fetch(`/api/sessions/${deleteTarget}`, { method: 'DELETE' })
+    setSessions(prev => prev.filter(s => s.id !== deleteTarget))
+    if (detail?.id === deleteTarget) setDetail(null)
+    setDeleteTarget(null)
   }
 
   // ── Export per session ──────────────────────────────────────
@@ -283,42 +282,65 @@ ${warnHtml}
 
       <main className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-4">
 
-        {/* Filter */}
+        {/* ── FILTER SECTION ─────────────────────────────────── */}
         <div className="card fade-up">
-          <div className="card-head flex items-center gap-3">
-            <div className="ico-wrap ico-brand"><span className="material-icons-round">filter_list</span></div>
-            <div className="text-sm font-bold text-ink">Filter & Cari</div>
-          </div>
-          <div className="p-4 flex flex-col gap-3">
-            <div className="relative">
-              <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-ink-3 text-xl">search</span>
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Cari auditor, lokasi, atau bulan..."
-                className="inp pl-10" />
+          {/* Segmented lokasi */}
+          <div className="p-3 border-b border-surface-border overflow-x-auto">
+            <div className="flex gap-1.5 min-w-max">
+              {[{ id: 'ALL', nama: 'Semua' }, ...lokasiList].map(l => (
+                <button key={l.id} onClick={() => setFilterLokasi(l.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    filterLokasi === l.id
+                      ? 'bg-brand text-white shadow-sm'
+                      : 'bg-surface text-ink-2 hover:bg-brand-pale hover:text-brand'
+                  }`}>
+                  {l.nama}
+                </button>
+              ))}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <select value={filterLokasi} onChange={e => setFilterLokasi(e.target.value)} className="inp text-xs py-2">
-                <option value="ALL">Semua Lokasi</option>
-                {lokasiList.map(l => <option key={l.id} value={l.id}>{l.nama}</option>)}
-              </select>
-              <select value={filterBulan} onChange={e => setFilterBulan(e.target.value)} className="inp text-xs py-2">
+          </div>
+
+          {/* Dropdowns + sort */}
+          <div className="p-3 flex gap-2 items-center flex-wrap">
+            <div className="relative flex-1 min-w-[100px]">
+              <select value={filterBulan} onChange={e => setFilterBulan(e.target.value)}
+                className="w-full appearance-none bg-surface border border-surface-border rounded-xl px-3 py-2 text-xs font-semibold text-ink-2 cursor-pointer pr-7 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20">
                 <option value="ALL">Semua Bulan</option>
                 {BULAN_ID.map((b, i) => <option key={i} value={i}>{b}</option>)}
               </select>
-              <select value={filterKategori} onChange={e => setFilterKategori(e.target.value)} className="inp text-xs py-2">
+              <span className="material-icons-round absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 text-sm pointer-events-none">expand_more</span>
+            </div>
+            <div className="relative flex-1 min-w-[100px]">
+              <select value={filterKategori} onChange={e => setFilterKategori(e.target.value)}
+                className="w-full appearance-none bg-surface border border-surface-border rounded-xl px-3 py-2 text-xs font-semibold text-ink-2 cursor-pointer pr-7 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20">
                 <option value="ALL">Semua Kategori</option>
                 <option value="EX">Excellent</option>
                 <option value="SD">Standard</option>
                 <option value="NI">Need Improvement</option>
               </select>
+              <span className="material-icons-round absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 text-sm pointer-events-none">expand_more</span>
             </div>
-            {(filterLokasi !== 'ALL' || filterBulan !== 'ALL' || filterKategori !== 'ALL' || search) && (
-              <button onClick={() => { setFilterLokasi('ALL'); setFilterBulan('ALL'); setFilterKategori('ALL'); setSearch('') }}
-                className="text-xs text-ink-3 hover:text-danger transition-colors flex items-center gap-1 self-start">
+            {/* Sort segmented */}
+            <div className="flex bg-surface border border-surface-border rounded-xl overflow-hidden flex-shrink-0">
+              <button onClick={() => setSortOrder('newest')}
+                className={`px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 transition-all ${sortOrder === 'newest' ? 'bg-brand text-white' : 'text-ink-3 hover:text-brand'}`}>
+                <span className="material-icons-round text-sm">arrow_downward</span> Terbaru
+              </button>
+              <button onClick={() => setSortOrder('oldest')}
+                className={`px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 transition-all border-l border-surface-border ${sortOrder === 'oldest' ? 'bg-brand text-white' : 'text-ink-3 hover:text-brand'}`}>
+                <span className="material-icons-round text-sm">arrow_upward</span> Terlama
+              </button>
+            </div>
+          </div>
+
+          {(filterLokasi !== 'ALL' || filterBulan !== 'ALL' || filterKategori !== 'ALL') && (
+            <div className="px-3 pb-3">
+              <button onClick={() => { setFilterLokasi('ALL'); setFilterBulan('ALL'); setFilterKategori('ALL') }}
+                className="text-[11px] text-ink-3 hover:text-danger transition-colors flex items-center gap-1">
                 <span className="material-icons-round text-sm">close</span> Reset filter
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* List */}
@@ -374,30 +396,32 @@ ${warnHtml}
           <div className="bg-white rounded-3xl w-full max-w-3xl shadow-card-hover flex flex-col max-h-[92vh]">
 
             {/* Modal header */}
-            <div className="p-4 border-b border-surface-border flex items-center gap-3 flex-shrink-0">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-extrabold text-ink">{detail.lokasi.nama} — {formatTanggal(detail.tanggal)}</div>
-                <div className="text-[11px] text-ink-3">PIC: {detail.auditor1}{detail.auditor2 ? ' & ' + detail.auditor2 : ''}</div>
+            <div className="p-4 border-b border-surface-border flex-shrink-0">
+              <div className="flex items-start gap-2 mb-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-extrabold text-ink leading-tight">{detail.lokasi.nama} — {formatTanggal(detail.tanggal)}</div>
+                  <div className="text-[11px] text-ink-3 mt-0.5">PIC: {detail.auditor1}{detail.auditor2 ? ' & ' + detail.auditor2 : ''}</div>
+                </div>
+                <button onClick={() => setDetail(null)}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-3 hover:bg-surface transition-all flex-shrink-0">
+                  <span className="material-icons-round text-lg">close</span>
+                </button>
               </div>
-              {/* Export buttons */}
-              <button onClick={() => exportSessionExcel(detail)}
-                disabled={detailLoading}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-success-light text-success hover:bg-success hover:text-white transition-all disabled:opacity-40">
-                <span className="material-icons-round text-sm">table_chart</span> Excel
-              </button>
-              <button onClick={() => exportSessionPDF(detail)}
-                disabled={detailLoading}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-danger-light text-danger hover:bg-danger hover:text-white transition-all disabled:opacity-40">
-                <span className="material-icons-round text-sm">picture_as_pdf</span> PDF
-              </button>
-              <button onClick={() => handleDelete(detail.id)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-danger hover:bg-danger-light transition-all">
-                <span className="material-icons-round text-base">delete</span>
-              </button>
-              <button onClick={() => setDetail(null)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-3 hover:bg-surface transition-all">
-                <span className="material-icons-round text-lg">close</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => exportSessionExcel(detail)} disabled={detailLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-success-light text-success hover:bg-success hover:text-white transition-all disabled:opacity-40">
+                  <span className="material-icons-round text-sm">table_chart</span> Excel
+                </button>
+                <button onClick={() => exportSessionPDF(detail)} disabled={detailLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-danger-light text-danger hover:bg-danger hover:text-white transition-all disabled:opacity-40">
+                  <span className="material-icons-round text-sm">picture_as_pdf</span> PDF
+                </button>
+                <div className="flex-1" />
+                <button onClick={() => setDeleteTarget(detail.id)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-danger hover:bg-danger-light transition-all">
+                  <span className="material-icons-round text-sm">delete</span> Hapus
+                </button>
+              </div>
             </div>
 
             {/* Modal body */}
@@ -539,6 +563,32 @@ ${warnHtml}
                   })()}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE CONFIRM MODAL ─────────────────────────────── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ background: 'rgba(22,22,42,0.6)', backdropFilter: 'blur(6px)' }}>
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-card-hover p-5 flex flex-col gap-4 animate-[fadeUp_0.2s_ease]">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-danger-light flex items-center justify-center flex-shrink-0">
+                <span className="material-icons-round text-danger text-xl">delete_forever</span>
+              </div>
+              <div>
+                <div className="text-sm font-extrabold text-ink">Hapus riwayat ini?</div>
+                <div className="text-[11px] text-ink-3 mt-0.5">Data audit akan dihapus permanen dan tidak bisa dikembalikan.</div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteTarget(null)}
+                className="btn-secondary flex-1 text-sm py-3">Batal</button>
+              <button onClick={confirmDelete}
+                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white border-none cursor-pointer bg-danger flex items-center justify-center gap-1.5 hover:-translate-y-0.5 transition-all">
+                <span className="material-icons-round text-base">delete</span> Hapus
+              </button>
             </div>
           </div>
         </div>

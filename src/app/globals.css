@@ -128,23 +128,33 @@
     background: white !important;
     background-image: none !important;
     min-height: unset !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .fade-up { animation: none !important; }
+
+  /* Expand content to full page width */
+  main {
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin: 0 !important;
+  }
 
   /* Remove card shadows for print */
   .card {
     box-shadow: none !important;
     border: 1px solid #e8e6ff !important;
+    border-radius: 10px !important;
+    page-break-inside: avoid;
   }
 
-  /* Score bubbles — keep background colors */
-  .score-bubble {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
+  /* Ensure text colors render */
+  table td, table th { color: inherit !important; }
 
   @page {
     margin: 12mm;
+    size: A4 landscape;
   }
 }

@@ -356,14 +356,31 @@ export default function AuditPage() {
                   })}
                 </div>
 
-                {/* Remark input */}
-                <input
-                  type="text"
-                  value={remark}
-                  onChange={e => setRemark(item.id, e.target.value)}
-                  placeholder="Catatan / temuan (opsional)..."
-                  className="inp text-xs py-2.5"
-                />
+                {/* Remark input — wajib jika skor ≤ 2 */}
+                {(scored <= 2 && scored >= 0) ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-icons-round text-warning text-sm">warning_amber</span>
+                      <span className="text-[11px] font-bold text-warning">Wajib isi catatan untuk skor rendah</span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={remark}
+                      onChange={e => setRemark(item.id, e.target.value)}
+                      placeholder="Jelaskan temuan / kondisi yang ditemukan..."
+                      className="inp text-xs py-2.5 resize-none border-warning/60 focus:border-warning focus:ring-warning/20"
+                      autoFocus={scored >= 0 && !remark}
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={remark}
+                    onChange={e => setRemark(item.id, e.target.value)}
+                    placeholder="Catatan / temuan (opsional)..."
+                    className="inp text-xs py-2.5"
+                  />
+                )}
               </div>
             </div>
           )

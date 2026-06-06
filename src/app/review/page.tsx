@@ -171,10 +171,10 @@ export default function ReviewPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-6 flex flex-col gap-5">
+      <main className="max-w-3xl mx-auto px-5 py-6 flex flex-col gap-0">
 
         {/* ── HERO HEADER ─────────────────────────────────────── */}
-        <div className="rounded-3xl overflow-hidden shadow-card-hover fade-up"
+        <div className="rounded-t-3xl overflow-hidden shadow-card-hover fade-up"
           style={{ background: 'linear-gradient(135deg, #10C98F 0%, #0db87e 50%, #0ea572 100%)' }}>
           <div className="p-6 text-white relative overflow-hidden">
             <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-10 bg-white" />
@@ -214,7 +214,7 @@ export default function ReviewPage() {
         </div>
 
         {/* ── REKAP TABLE ─────────────────────────────────────── */}
-        <div className="card fade-up" style={{ animationDelay: '0.05s' }}>
+        <div className="bg-white border border-surface-border rounded-b-3xl shadow-card fade-up mb-5" style={{ animationDelay: '0.05s' }}>
           <div className="card-head flex items-center gap-3">
             <div className="ico-wrap ico-brand"><span className="material-icons-round">table_view</span></div>
             <div>
@@ -245,29 +245,51 @@ export default function ReviewPage() {
                 {allMembers.map((name, i) => {
                   const r = results.find(res => res.auditee_name === name)
                   const isSkipped = r?.skipped ?? !r
-                  const scores = (r?.scores as Record<string, number>) ?? {}
+                  const scores  = (r?.scores  as Record<string, number>) ?? {}
+                  const remarks = (r?.remarks as Record<string, string>)  ?? {}
+                  const commentItems = checklist.filter(item => remarks[item.id]?.trim())
                   return (
-                    <tr key={name} className={`border-t border-surface-border transition-colors ${isSkipped ? 'opacity-50' : 'hover:bg-surface/50'}`}>
-                      <td className="px-3 py-2.5 text-ink-3">{i + 1}</td>
-                      <td className={`px-3 py-2.5 whitespace-nowrap ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`}>{name}</td>
-                      {checklist.map(item => (
-                        <td key={item.id} className="px-2 py-2.5 text-center">
-                          {isSkipped ? <span className="text-ink-3">—</span> : <ScoreBubble val={scores[item.id]} />}
+                    <>
+                      <tr key={name} className={`border-t border-surface-border transition-colors ${isSkipped ? 'opacity-50' : 'hover:bg-surface/50'}`}>
+                        <td className="px-3 py-2.5 text-ink-3 text-[11px]">{i + 1}</td>
+                        <td className={`px-3 py-2.5 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ minWidth: '80px' }}>{name}</td>
+                        {checklist.map(item => (
+                          <td key={item.id} className="px-2 py-2.5 text-center">
+                            {isSkipped ? <span className="text-ink-3">—</span> : <ScoreBubble val={scores[item.id]} />}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2.5 text-center font-bold text-ink">
+                          {isSkipped ? <span className="text-ink-3">—</span> : (r?.total_score ?? '—')}
                         </td>
-                      ))}
-                      <td className="px-3 py-2.5 text-center font-bold text-ink">
-                        {isSkipped ? <span className="text-ink-3">—</span> : (r?.total_score ?? '—')}
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-bold text-brand">
-                        {isSkipped ? <span className="text-ink-3">—</span> : `${r?.persen ?? 0}%`}
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        {isSkipped
-                          ? <span className="text-[10px] italic text-ink-3">Dilewati</span>
-                          : <KategoriBadge k={r?.kategori ?? null} />
-                        }
-                      </td>
-                    </tr>
+                        <td className="px-3 py-2.5 text-center font-bold text-brand">
+                          {isSkipped ? <span className="text-ink-3">—</span> : `${r?.persen ?? 0}%`}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {isSkipped
+                            ? <span className="text-[10px] italic text-ink-3">Dilewati</span>
+                            : <KategoriBadge k={r?.kategori ?? null} />
+                          }
+                        </td>
+                      </tr>
+                      {commentItems.length > 0 && (
+                        <tr key={`${name}-remarks`} className="bg-warning/5 border-t border-warning/20">
+                          <td />
+                          <td colSpan={checklist.length + 4} className="px-3 py-2">
+                            <div className="flex items-start gap-1.5 flex-wrap">
+                              <span className="material-icons-round text-warning text-sm mt-0.5 flex-shrink-0">chat_bubble_outline</span>
+                              <div className="flex flex-wrap gap-2">
+                                {commentItems.map(item => (
+                                  <span key={item.id} className="text-[10px] text-ink-2">
+                                    <span className="font-bold text-warning">{item.item}:</span>{' '}
+                                    <span className="italic">{remarks[item.id]}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   )
                 })}
               </tbody>
@@ -277,14 +299,16 @@ export default function ReviewPage() {
           {/* ── SIGN APPROVAL ──────────────────────────────────── */}
           <div className="p-6 border-t border-surface-border grid grid-cols-2 gap-8">
             <div>
-              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-10">PIC Auditor 6S</div>
+              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-2">PIC Auditor 6S</div>
+              <div className="h-16" />
               <div className="border-b-2 border-ink-2 mb-2 w-32" />
               <div className="font-bold text-sm text-brand">{session.auditor1}</div>
               <div className="text-[11px] text-ink-3">PIC 6S {lokasiNama}</div>
             </div>
             {session.auditor2 && (
               <div className="text-right">
-                <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-10">Mengetahui:</div>
+                <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-2">Mengetahui:</div>
+                <div className="h-16" />
                 <div className="border-b-2 border-ink-2 mb-2 w-32 ml-auto" />
                 <div className="font-bold text-sm text-brand">{session.auditor2}</div>
                 <div className="text-[11px] text-ink-3">Safety Coordinator</div>
@@ -295,7 +319,7 @@ export default function ReviewPage() {
 
         {/* ── SKIPPED WARNING ─────────────────────────────────── */}
         {skipped.length > 0 && (
-          <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 flex items-start gap-3 fade-up" style={{ animationDelay: '0.08s' }}>
+          <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4 flex items-start gap-3 fade-up mb-5" style={{ animationDelay: '0.08s' }}>
             <span className="material-icons-round text-warning text-xl mt-0.5">warning_amber</span>
             <div>
               <div className="text-sm font-bold text-warning">{skipped.length} Auditee Dilewati</div>
