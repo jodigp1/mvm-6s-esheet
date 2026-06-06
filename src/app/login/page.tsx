@@ -1,10 +1,10 @@
 'use client'
 // app/login/page.tsx
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginContent() {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -86,5 +86,13 @@ export default function LoginPage() {
         <p className="text-center text-[11px] text-ink-3 mt-5">PT Asahimas Chemical — Internal Tool</p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   )
 }
