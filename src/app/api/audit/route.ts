@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
         session_id, lokasi_id, tanggal, auditee_name,
         scores, remarks, total_score, max_score,
         persen, kategori, skipped, skip_reason,
-      },
+      } as any,
       { onConflict: 'session_id,auditee_name' }
     )
     .select()
