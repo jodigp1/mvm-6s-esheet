@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { ActiveSession, AuditResult, ChecklistItem, ScoreConfig } from '@/types/database'
@@ -151,7 +151,7 @@ export default function ReviewPage() {
   return (
     <div className="min-h-screen pb-20">
       <header className="no-print bg-white border-b border-surface-border sticky top-0 z-50 shadow-card">
-        <div className="max-w-3xl mx-auto px-5 h-[60px] flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-5 h-[60px] flex items-center gap-3">
           <button onClick={() => router.back()}
             className="w-9 h-9 rounded-xl border border-surface-border flex items-center justify-center text-ink-2 hover:bg-brand-pale hover:border-brand hover:text-brand transition-all">
             <span className="material-icons-round text-lg">arrow_back</span>
@@ -171,50 +171,52 @@ export default function ReviewPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-5 py-6 flex flex-col gap-0">
+      <main className="max-w-6xl mx-auto px-5 py-6 flex flex-col gap-5">
 
-        {/* ── HERO HEADER ─────────────────────────────────────── */}
-        <div className="rounded-t-3xl overflow-hidden shadow-card-hover fade-up"
-          style={{ background: 'linear-gradient(135deg, #10C98F 0%, #0db87e 50%, #0ea572 100%)' }}>
-          <div className="p-6 text-white relative overflow-hidden">
-            <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-10 bg-white" />
-            <div className="absolute -right-2 bottom-0 w-24 h-24 rounded-full opacity-10 bg-white" />
-            <div className="relative">
-              <h1 className="text-xl font-extrabold mb-1">Hasil Audit 6S MVM ({bulan})</h1>
-              <p className="text-sm opacity-80 mb-4">{lokasiNama} — {tanggalFmt}</p>
-              <div className="flex flex-wrap gap-4 text-sm mb-5">
-                <div className="flex items-center gap-1.5 opacity-90">
-                  <span className="material-icons-round text-base">person</span>
-                  PIC Auditor: {session.auditor1}{session.auditor2 ? ` & ${session.auditor2}` : ''}
-                </div>
-                <div className="flex items-center gap-1.5 opacity-90">
-                  <span className="material-icons-round text-base">checklist</span>
-                  {checklist.length} Item Checklist
-                </div>
-                <div className="flex items-center gap-1.5 opacity-90">
-                  <span className="material-icons-round text-base">timer</span>
-                  Waktu: {waktuProses}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Jumlah Auditee',   value: nonSkipped.length },
-                  { label: 'Rata-rata',          value: `${avgPct}%` },
-                  { label: 'Jumlah Excellent',   value: exCount },
-                ].map(({ label, value }) => (
-                  <div key={label} className="rounded-2xl p-3 text-center"
-                    style={{ background: 'rgba(255,255,255,0.18)' }}>
-                    <div className="text-xl font-extrabold">{value}</div>
-                    <div className="text-[11px] opacity-75 mt-0.5">{label}</div>
+        {/* ── HERO + TABLE (connected) ─────────────────────────── */}
+        <div className="rounded-3xl overflow-hidden shadow-card-hover fade-up border border-surface-border">
+
+          {/* Hero header */}
+          <div style={{ background: 'linear-gradient(135deg, #10C98F 0%, #0db87e 50%, #0ea572 100%)' }}>
+            <div className="p-6 text-white relative overflow-hidden">
+              <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-10 bg-white" />
+              <div className="absolute -right-2 bottom-0 w-24 h-24 rounded-full opacity-10 bg-white" />
+              <div className="relative">
+                <h1 className="text-xl font-extrabold mb-1">Hasil Audit 6S MVM ({bulan})</h1>
+                <p className="text-sm opacity-80 mb-4">{lokasiNama} — {tanggalFmt}</p>
+                <div className="flex flex-wrap gap-4 text-sm mb-5">
+                  <div className="flex items-center gap-1.5 opacity-90">
+                    <span className="material-icons-round text-base">person</span>
+                    PIC Auditor: {session.auditor1}{session.auditor2 ? ` & ${session.auditor2}` : ''}
                   </div>
-                ))}
+                  <div className="flex items-center gap-1.5 opacity-90">
+                    <span className="material-icons-round text-base">checklist</span>
+                    {checklist.length} Item Checklist
+                  </div>
+                  <div className="flex items-center gap-1.5 opacity-90">
+                    <span className="material-icons-round text-base">timer</span>
+                    Waktu: {waktuProses}
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Jumlah Auditee',   value: nonSkipped.length },
+                    { label: 'Rata-rata',          value: `${avgPct}%` },
+                    { label: 'Jumlah Excellent',   value: exCount },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-2xl p-3 text-center"
+                      style={{ background: 'rgba(255,255,255,0.18)' }}>
+                      <div className="text-xl font-extrabold">{value}</div>
+                      <div className="text-[11px] opacity-75 mt-0.5">{label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ── REKAP TABLE ─────────────────────────────────────── */}
-        <div className="bg-white border border-surface-border rounded-b-3xl shadow-card fade-up mb-5" style={{ animationDelay: '0.05s' }}>
+          {/* ── REKAP TABLE ─────────────────────────────────────── */}
+          <div className="bg-white">
           <div className="card-head flex items-center gap-3">
             <div className="ico-wrap ico-brand"><span className="material-icons-round">table_view</span></div>
             <div>
@@ -232,8 +234,8 @@ export default function ReviewPage() {
                   <th className="px-3 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
                   <th className="px-3 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap min-w-[110px]">NAMA</th>
                   {checklist.map(item => (
-                    <th key={item.id} className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap min-w-[70px] uppercase text-[10px]">
-                      {item.item.length > 8 ? item.item.substring(0, 8) + '…' : item.item}
+                    <th key={item.id} className="px-2 py-2.5 text-center font-bold text-ink-2 min-w-[64px] max-w-[90px] uppercase text-[10px] leading-tight break-words">
+                      {item.item}
                     </th>
                   ))}
                   <th className="px-3 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap">TOTAL</th>
@@ -249,8 +251,8 @@ export default function ReviewPage() {
                   const remarks = (r?.remarks as Record<string, string>)  ?? {}
                   const commentItems = checklist.filter(item => remarks[item.id]?.trim())
                   return (
-                    <>
-                      <tr key={name} className={`border-t border-surface-border transition-colors ${isSkipped ? 'opacity-50' : 'hover:bg-surface/50'}`}>
+                    <Fragment key={name}>
+                      <tr className={`border-t border-surface-border transition-colors ${isSkipped ? 'opacity-50' : 'hover:bg-surface/50'}`}>
                         <td className="px-3 py-2.5 text-ink-3 text-[11px]">{i + 1}</td>
                         <td className={`px-3 py-2.5 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ minWidth: '80px' }}>{name}</td>
                         {checklist.map(item => (
@@ -289,29 +291,37 @@ export default function ReviewPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </tbody>
             </table>
           </div>
 
-          {/* ── SIGN APPROVAL ──────────────────────────────────── */}
-          <div className="p-6 border-t border-surface-border grid grid-cols-2 gap-8">
+        </div>{/* end table */}
+        </div>{/* end hero+table wrapper */}
+
+        {/* ── SIGN APPROVAL ──────────────────────────────────── */}
+        <div className="bg-white border border-surface-border rounded-3xl shadow-card fade-up" style={{ animationDelay: '0.07s' }}>
+          <div className={`p-6 grid gap-8 ${session.auditor2 ? 'grid-cols-2' : 'grid-cols-1 max-w-xs'}`}>
             <div>
-              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-2">PIC Auditor 6S</div>
-              <div className="h-16" />
-              <div className="border-b-2 border-ink-2 mb-2 w-32" />
-              <div className="font-bold text-sm text-brand">{session.auditor1}</div>
+              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-3">PIC Auditor 6S</div>
+              <div className="text-4xl text-brand mb-1" style={{ fontFamily: "'Dancing Script', cursive" }}>
+                {session.auditor1}
+              </div>
+              <div className="border-b border-ink-3/30 mb-2 w-48" />
+              <div className="font-bold text-sm text-ink mb-0.5">{session.auditor1}</div>
               <div className="text-[11px] text-ink-3">PIC 6S {lokasiNama}</div>
             </div>
             {session.auditor2 && (
-              <div className="text-right">
-                <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-2">Mengetahui:</div>
-                <div className="h-16" />
-                <div className="border-b-2 border-ink-2 mb-2 w-32 ml-auto" />
-                <div className="font-bold text-sm text-brand">{session.auditor2}</div>
-                <div className="text-[11px] text-ink-3">Safety Coordinator</div>
+              <div>
+                <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-3">PIC Auditor 6S</div>
+                <div className="text-4xl text-brand mb-1" style={{ fontFamily: "'Dancing Script', cursive" }}>
+                  {session.auditor2}
+                </div>
+                <div className="border-b border-ink-3/30 mb-2 w-48" />
+                <div className="font-bold text-sm text-ink mb-0.5">{session.auditor2}</div>
+                <div className="text-[11px] text-ink-3">PIC 6S {lokasiNama}</div>
               </div>
             )}
           </div>

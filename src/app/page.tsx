@@ -382,7 +382,7 @@ export default function SetupSesiPage() {
         )}
 
         {/* ── CONTAINER 1: PILIH LOKASI ────────────────────── */}
-        <div className={`card fade-up transition-all ${step1Done ? 'ring-2 ring-brand/20' : ''}`} style={{ animationDelay: '0.04s' }}>
+        <div className={`card fade-up transition-all ${step1Done ? 'ring-2 ring-brand/20' : ''}`} style={{ animationDelay: '0.04s', position: 'relative', zIndex: 3 }}>
           <div className="card-head flex items-center gap-3">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold flex-shrink-0 transition-all ${
               step1Done ? 'bg-brand text-white' : 'bg-surface-border text-ink-3'
@@ -406,7 +406,7 @@ export default function SetupSesiPage() {
                       onClick={() => setLokasiId(active ? '' : lokasi.id)}
                       className="relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all text-center"
                       style={{
-                        borderColor:    active ? acc.color : 'var(--tw-border-opacity, #E8E6FF)',
+                        borderColor:    active ? acc.color : '#E2E8F0',
                         background:     active ? acc.selectedBg : '#FAFAFE',
                         boxShadow:      active ? `0 0 0 3px ${acc.color}18` : 'none',
                       }}>
@@ -440,7 +440,7 @@ export default function SetupSesiPage() {
         </div>
 
         {/* ── CONTAINER 2: TANGGAL ────────────────────────── */}
-        <div className={`card fade-up transition-all ${step2Done ? 'ring-2 ring-brand/20' : ''}`} style={{ animationDelay: '0.08s' }}>
+        <div className={`card fade-up transition-all ${step2Done ? 'ring-2 ring-brand/20' : ''}`} style={{ animationDelay: '0.08s', position: 'relative', zIndex: 20 }}>
           <div className="card-head flex items-center gap-3">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold flex-shrink-0 transition-all ${
               step2Done ? 'bg-brand text-white' : 'bg-surface-border text-ink-3'
@@ -457,7 +457,7 @@ export default function SetupSesiPage() {
         </div>
 
         {/* ── CONTAINER 3: PIC AUDITOR ────────────────────── */}
-        <div className={`card fade-up transition-all ${step3Done ? 'ring-2 ring-brand/20' : ''}`} style={{ animationDelay: '0.12s' }}>
+        <div className={`card fade-up transition-all ${step3Done ? 'ring-2 ring-brand/20' : ''}`} style={{ animationDelay: '0.12s', position: 'relative', zIndex: 10 }}>
           <div className="card-head flex items-center gap-3">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold flex-shrink-0 transition-all ${
               step3Done ? 'bg-brand text-white' : 'bg-surface-border text-ink-3'
@@ -483,7 +483,7 @@ export default function SetupSesiPage() {
             ) : memberList.length === 0 ? (
               <div className="text-center py-4 text-xs text-ink-3">Memuat daftar anggota...</div>
             ) : (
-              <>
+              <div key={lokasiId} className="flex flex-col gap-3 animate-[fadeUp_0.3s_ease_both]">
                 <div>
                   <div className="text-[11px] font-bold text-ink-2 mb-1.5">
                     {butuhDuaPic ? 'PIC Auditor 1' : 'PIC Auditor'}
@@ -498,7 +498,7 @@ export default function SetupSesiPage() {
                 </div>
 
                 {butuhDuaPic && (
-                  <div>
+                  <div className="animate-[fadeUp_0.3s_ease_0.08s_both]">
                     <div className="text-[11px] font-bold text-ink-2 mb-1.5">PIC Auditor 2</div>
                     <SearchableSelect
                       options={auditorOptions}
@@ -514,7 +514,7 @@ export default function SetupSesiPage() {
                   <span className="material-icons-round text-brand text-base">group</span>
                   <span className="text-xs text-ink-2 font-semibold">{memberList.length} auditee terdaftar</span>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>

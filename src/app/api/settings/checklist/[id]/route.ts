@@ -8,3 +8,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const sb = supabaseAdmin()
+  const { error } = await sb.from('checklist_items').delete().eq('id', params.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

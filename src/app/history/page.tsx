@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -14,6 +14,64 @@ type SessionWithLokasi = AuditSession & {
 
 const BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
+// ── Custom simple dropdown ──────────────────────────────────────
+function SimpleDropdown({ value, onChange, options, placeholder, icon }: {
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string; color?: string }[]
+  placeholder: string
+  icon: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div className="relative flex-1" ref={ref}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 bg-surface border border-surface-border rounded-xl px-3 py-2 text-xs font-semibold text-ink-2 cursor-pointer hover:border-brand hover:bg-brand-pale hover:text-brand transition-all">
+        <span className="material-icons-round text-sm flex-shrink-0" style={{ color: selected?.color }}>{icon}</span>
+        <span className="flex-1 text-left truncate" style={{ color: selected?.color }}>
+          {selected?.label ?? placeholder}
+        </span>
+        <span className="material-icons-round text-ink-3 text-sm flex-shrink-0 transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>expand_more</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl shadow-card-hover border border-surface-border z-50 overflow-hidden py-1">
+          {options.map(opt => (
+            <button key={opt.value} type="button"
+              onClick={() => { onChange(opt.value); setOpen(false) }}
+              className={`w-full text-left px-4 py-2.5 text-xs flex items-center gap-2 transition-colors ${
+                value === opt.value
+                  ? 'bg-brand-pale font-bold'
+                  : 'hover:bg-surface'
+              }`}>
+              {value === opt.value && (
+                <span className="material-icons-round text-brand text-sm">check</span>
+              )}
+              {value !== opt.value && <span className="w-5" />}
+              <span style={{ color: value === opt.value ? '#7C6EF5' : opt.color ?? '#4B5169' }}>
+                {opt.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function HistoryPage() {
   const router = useRouter()
 
@@ -23,6 +81,7 @@ export default function HistoryPage() {
 
   // Filters
   const [filterLokasi,   setFilterLokasi]   = useState('ALL')
+  const [filterTahun,    setFilterTahun]    = useState('ALL')
   const [filterBulan,    setFilterBulan]    = useState('ALL')
   const [filterKategori, setFilterKategori] = useState('ALL')
   const [sortOrder,      setSortOrder]      = useState<'newest' | 'oldest'>('newest')
@@ -53,22 +112,38 @@ export default function HistoryPage() {
     })
   }, [])
 
+  const tahunOptions = useMemo(() => {
+    const years = new Set(sessions.map(s => new Date(s.tanggal + 'T00:00:00').getFullYear()))
+    return Array.from(years).sort((a, b) => b - a)
+  }, [sessions])
+
   const filtered = useMemo(() => {
     const arr = sessions.filter(s => {
       if (filterLokasi !== 'ALL' && s.lokasi_id !== filterLokasi) return false
-      if (filterBulan  !== 'ALL') {
-        const bln = new Date(s.tanggal + 'T00:00:00').getMonth()
-        if (bln !== parseInt(filterBulan)) return false
-      }
+      const d = new Date(s.tanggal + 'T00:00:00')
+      if (filterTahun  !== 'ALL' && d.getFullYear() !== parseInt(filterTahun)) return false
+      if (filterBulan  !== 'ALL' && d.getMonth()    !== parseInt(filterBulan))  return false
       if (filterKategori !== 'ALL') {
-        const hasKat = s.audit_results.some(r => r.kategori === filterKategori)
-        if (!hasKat) return false
+        if (!s.audit_results.some(r => r.kategori === filterKategori)) return false
       }
       return true
     })
     if (sortOrder === 'oldest') arr.reverse()
     return arr
-  }, [sessions, filterLokasi, filterBulan, filterKategori, sortOrder])
+  }, [sessions, filterLokasi, filterTahun, filterBulan, filterKategori, sortOrder])
+
+  const groupedByMonth = useMemo(() => {
+    const groups: { label: string; sessions: SessionWithLokasi[] }[] = []
+    const seen = new Map<string, number>()
+    filtered.forEach(s => {
+      const d = new Date(s.tanggal + 'T00:00:00')
+      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const label = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+      if (!seen.has(key)) { seen.set(key, groups.length); groups.push({ label, sessions: [] }) }
+      groups[seen.get(key)!].sessions.push(s)
+    })
+    return groups
+  }, [filtered])
 
   async function openDetail(s: SessionWithLokasi) {
     setDetail(s)
@@ -140,36 +215,50 @@ export default function HistoryPage() {
 
     const tableRows = detailResults.map((r, i) => {
       const isSkipped = r.skipped
-      const scores = (r.scores as Record<string, number>) ?? {}
+      const scores  = (r.scores  as Record<string, number>) ?? {}
+      const remarks = (r.remarks as Record<string, string>)  ?? {}
       const cells = detailChecklist.map(item => {
-        if (isSkipped) return `<td style="text-align:center;color:#9CA3AF">—</td>`
+        if (isSkipped) return `<td style="text-align:center;color:#9CA3AF">&mdash;</td>`
         const v = scores[item.id]
         if (v === undefined) return `<td style="text-align:center;color:#9CA3AF">—</td>`
         const c = scoreColor(v)
         return `<td style="text-align:center"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${c}22;color:${c};font-weight:800;font-size:11px">${v}</span></td>`
       }).join('')
+
+      const commentItems = detailChecklist.filter(item => remarks[item.id]?.trim())
+      const commentRow = commentItems.length > 0
+        ? `<tr style="background:#FFFBEB"><td></td><td colspan="${detailChecklist.length + 4}" style="padding:5px 8px 7px">
+            <span style="font-size:10px;color:#92400E">💬 </span>
+            ${commentItems.map(item =>
+              `<span style="font-size:10px;color:#374151;margin-right:12px"><strong style="color:#B45309">${item.item}:</strong> <em>${remarks[item.id]}</em></span>`
+            ).join('')}
+          </td></tr>`
+        : ''
+
       if (isSkipped) {
-        return `<tr style="opacity:0.5"><td style="color:#9CA3AF">${i+1}</td><td style="font-style:italic;color:#9CA3AF">${r.auditee_name}</td>${detailChecklist.map(() => '<td style="text-align:center;color:#9CA3AF">—</td>').join('')}<td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF;font-style:italic">Dilewati</td></tr>`
+        return `<tr style="opacity:0.5"><td style="color:#9CA3AF">${i+1}</td><td style="font-style:italic;color:#9CA3AF">${r.auditee_name}</td>${detailChecklist.map(() => '<td style="text-align:center;color:#9CA3AF">&mdash;</td>').join('')}<td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF;font-style:italic">Dilewati</td></tr>`
       }
       const kc = katColor(r.kategori ?? null)
-      return `<tr><td style="color:#9CA3AF">${i+1}</td><td style="font-weight:700">${r.auditee_name}</td>${cells}<td style="text-align:center;font-weight:700">${r.total_score ?? '—'}</td><td style="text-align:center;font-weight:700;color:#10C98F">${r.persen ?? 0}%</td><td style="text-align:center;font-weight:700;color:${kc}">${katLabel(r.kategori ?? null)}</td></tr>`
+      return `<tr><td style="color:#9CA3AF">${i+1}</td><td style="font-weight:700">${r.auditee_name}</td>${cells}<td style="text-align:center;font-weight:700">${r.total_score ?? '—'}</td><td style="text-align:center;font-weight:700;color:#10C98F">${r.persen ?? 0}%</td><td style="text-align:center;font-weight:700;color:${kc}">${katLabel(r.kategori ?? null)}</td></tr>${commentRow}`
     }).join('')
 
     const headCols = detailChecklist.map(c => `<th style="text-align:center;min-width:55px">${c.item.length > 9 ? c.item.substring(0,9)+'.' : c.item}</th>`).join('')
 
     const signHtml = `
-      <div style="display:flex;justify-content:space-between;padding:24px 0 16px;border-top:1px solid #E5E2FF;margin-top:8px">
+      <div style="display:flex;gap:48px;padding:20px 0 12px;border-top:1px solid #E5E2FF;margin-top:8px">
         <div>
-          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:36px">PIC AUDITOR 6S</div>
-          <div style="border-bottom:2px solid #6B7280;width:120px;margin-bottom:6px"></div>
-          <div style="font-weight:700;font-size:13px;color:#6455DC">${s.auditor1}</div>
+          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">PIC AUDITOR 6S</div>
+          <div style="font-family:'Dancing Script',cursive;font-size:32px;color:#6455DC;line-height:1.1;margin-bottom:4px">${s.auditor1}</div>
+          <div style="border-bottom:1px solid #D1D5DB;width:160px;margin-bottom:6px"></div>
+          <div style="font-weight:700;font-size:13px;color:#1a1a2e;margin-bottom:2px">${s.auditor1}</div>
           <div style="font-size:11px;color:#9CA3AF">PIC 6S ${lokasiNama}</div>
         </div>
-        ${s.auditor2 ? `<div style="text-align:right">
-          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:36px">MENGETAHUI:</div>
-          <div style="border-bottom:2px solid #6B7280;width:120px;margin-bottom:6px;margin-left:auto"></div>
-          <div style="font-weight:700;font-size:13px;color:#6455DC">${s.auditor2}</div>
-          <div style="font-size:11px;color:#9CA3AF">Safety Coordinator</div>
+        ${s.auditor2 ? `<div>
+          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">PIC AUDITOR 6S</div>
+          <div style="font-family:'Dancing Script',cursive;font-size:32px;color:#6455DC;line-height:1.1;margin-bottom:4px">${s.auditor2}</div>
+          <div style="border-bottom:1px solid #D1D5DB;width:160px;margin-bottom:6px"></div>
+          <div style="font-weight:700;font-size:13px;color:#1a1a2e;margin-bottom:2px">${s.auditor2}</div>
+          <div style="font-size:11px;color:#9CA3AF">PIC 6S ${lokasiNama}</div>
         </div>` : ''}
       </div>`
 
@@ -187,7 +276,7 @@ export default function HistoryPage() {
 <head>
 <meta charset="utf-8">
 <title>Audit 6S — ${lokasiNama} ${tanggalFmt}</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:20px;background:#fff;font-size:13px;color:#1a1a2e}
@@ -283,16 +372,18 @@ ${warnHtml}
       <main className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-4">
 
         {/* ── FILTER SECTION ─────────────────────────────────── */}
-        <div className="card fade-up">
-          {/* Segmented lokasi */}
+        <div className="card fade-up" style={{ position: 'relative', zIndex: 30 }}>
+          {/* Connected segmented lokasi */}
           <div className="p-3 border-b border-surface-border overflow-x-auto">
-            <div className="flex gap-1.5 min-w-max">
-              {[{ id: 'ALL', nama: 'Semua' }, ...lokasiList].map(l => (
+            <div className="inline-flex w-full border border-surface-border rounded-2xl overflow-hidden min-w-max">
+              {[{ id: 'ALL', nama: 'Semua' }, ...lokasiList].map((l, idx, arr) => (
                 <button key={l.id} onClick={() => setFilterLokasi(l.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex-1 px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
+                    idx < arr.length - 1 ? 'border-r border-surface-border' : ''
+                  } ${
                     filterLokasi === l.id
-                      ? 'bg-brand text-white shadow-sm'
-                      : 'bg-surface text-ink-2 hover:bg-brand-pale hover:text-brand'
+                      ? 'bg-brand text-white'
+                      : 'bg-white text-ink-2 hover:bg-brand-pale hover:text-brand'
                   }`}>
                   {l.nama}
                 </button>
@@ -301,41 +392,59 @@ ${warnHtml}
           </div>
 
           {/* Dropdowns + sort */}
-          <div className="p-3 flex gap-2 items-center flex-wrap">
-            <div className="relative flex-1 min-w-[100px]">
-              <select value={filterBulan} onChange={e => setFilterBulan(e.target.value)}
-                className="w-full appearance-none bg-surface border border-surface-border rounded-xl px-3 py-2 text-xs font-semibold text-ink-2 cursor-pointer pr-7 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20">
-                <option value="ALL">Semua Bulan</option>
-                {BULAN_ID.map((b, i) => <option key={i} value={i}>{b}</option>)}
-              </select>
-              <span className="material-icons-round absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 text-sm pointer-events-none">expand_more</span>
+          <div className="p-3 flex flex-col gap-2">
+            <div className="flex gap-2 items-center">
+              <SimpleDropdown
+                value={filterTahun}
+                onChange={setFilterTahun}
+                icon="event"
+                placeholder="Semua Tahun"
+                options={[
+                  { value: 'ALL', label: 'Semua Tahun' },
+                  ...tahunOptions.map(y => ({ value: String(y), label: String(y) })),
+                ]}
+              />
+              <SimpleDropdown
+                value={filterBulan}
+                onChange={setFilterBulan}
+                icon="calendar_month"
+                placeholder="Semua Bulan"
+                options={[
+                  { value: 'ALL', label: 'Semua Bulan' },
+                  ...BULAN_ID.map((b, i) => ({ value: String(i), label: b })),
+                ]}
+              />
             </div>
-            <div className="relative flex-1 min-w-[100px]">
-              <select value={filterKategori} onChange={e => setFilterKategori(e.target.value)}
-                className="w-full appearance-none bg-surface border border-surface-border rounded-xl px-3 py-2 text-xs font-semibold text-ink-2 cursor-pointer pr-7 outline-none focus:border-brand focus:ring-1 focus:ring-brand/20">
-                <option value="ALL">Semua Kategori</option>
-                <option value="EX">Excellent</option>
-                <option value="SD">Standard</option>
-                <option value="NI">Need Improvement</option>
-              </select>
-              <span className="material-icons-round absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 text-sm pointer-events-none">expand_more</span>
-            </div>
-            {/* Sort segmented */}
-            <div className="flex bg-surface border border-surface-border rounded-xl overflow-hidden flex-shrink-0">
-              <button onClick={() => setSortOrder('newest')}
-                className={`px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 transition-all ${sortOrder === 'newest' ? 'bg-brand text-white' : 'text-ink-3 hover:text-brand'}`}>
-                <span className="material-icons-round text-sm">arrow_downward</span> Terbaru
-              </button>
-              <button onClick={() => setSortOrder('oldest')}
-                className={`px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 transition-all border-l border-surface-border ${sortOrder === 'oldest' ? 'bg-brand text-white' : 'text-ink-3 hover:text-brand'}`}>
-                <span className="material-icons-round text-sm">arrow_upward</span> Terlama
-              </button>
+            <div className="flex gap-2 items-center">
+              <SimpleDropdown
+                value={filterKategori}
+                onChange={setFilterKategori}
+                icon="star"
+                placeholder="Kategori"
+                options={[
+                  { value: 'ALL',  label: 'Semua Kategori' },
+                  { value: 'EX',   label: 'Excellent',        color: '#10C98F' },
+                  { value: 'SD',   label: 'Standard',          color: '#FACC15' },
+                  { value: 'NI',   label: 'Need Improvement',  color: '#FF5C7A' },
+                ]}
+              />
+              {/* Sort segmented */}
+              <div className="flex border border-surface-border rounded-xl overflow-hidden flex-shrink-0">
+                <button onClick={() => setSortOrder('newest')}
+                  className={`px-2.5 py-2 text-[11px] font-bold transition-all ${sortOrder === 'newest' ? 'bg-brand text-white' : 'bg-white text-ink-3 hover:text-brand'}`}>
+                  <span className="material-icons-round text-sm">arrow_downward</span>
+                </button>
+                <button onClick={() => setSortOrder('oldest')}
+                  className={`px-2.5 py-2 text-[11px] font-bold transition-all border-l border-surface-border ${sortOrder === 'oldest' ? 'bg-brand text-white' : 'bg-white text-ink-3 hover:text-brand'}`}>
+                  <span className="material-icons-round text-sm">arrow_upward</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {(filterLokasi !== 'ALL' || filterBulan !== 'ALL' || filterKategori !== 'ALL') && (
+          {(filterLokasi !== 'ALL' || filterTahun !== 'ALL' || filterBulan !== 'ALL' || filterKategori !== 'ALL') && (
             <div className="px-3 pb-3">
-              <button onClick={() => { setFilterLokasi('ALL'); setFilterBulan('ALL'); setFilterKategori('ALL') }}
+              <button onClick={() => { setFilterLokasi('ALL'); setFilterTahun('ALL'); setFilterBulan('ALL'); setFilterKategori('ALL') }}
                 className="text-[11px] text-ink-3 hover:text-danger transition-colors flex items-center gap-1">
                 <span className="material-icons-round text-sm">close</span> Reset filter
               </button>
@@ -343,49 +452,60 @@ ${warnHtml}
           )}
         </div>
 
-        {/* List */}
-        <div className="flex flex-col gap-3">
+        {/* List grouped by month */}
+        <div className="flex flex-col gap-5">
           {loading && <div className="text-center py-12 text-ink-3 text-sm">Memuat riwayat...</div>}
           {!loading && filtered.length === 0 && (
             <div className="text-center py-12 text-ink-3 text-sm">Tidak ada riwayat yang cocok.</div>
           )}
-          {filtered.map((s, i) => {
-            const exC = s.audit_results.filter(r => r.kategori === 'EX').length
-            const sdC = s.audit_results.filter(r => r.kategori === 'SD').length
-            const niC = s.audit_results.filter(r => r.kategori === 'NI').length
-            const skC = s.audit_results.filter(r => r.skipped).length
-            return (
-              <div key={s.id} className="card fade-up hover:shadow-card-hover transition-all cursor-pointer"
-                style={{ animationDelay: `${i * 0.03}s` }}
-                onClick={() => openDetail(s)}>
-                <div className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-brand-pale flex items-center justify-center flex-shrink-0">
-                    <span className="material-icons-round text-brand">assignment_turned_in</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-extrabold text-ink">{s.lokasi.nama}</span>
-                      <span className="text-[11px] text-ink-3">—</span>
-                      <span className="text-[11px] text-ink-3">{formatTanggal(s.tanggal)}</span>
-                    </div>
-                    <div className="text-[11px] text-ink-3 truncate">
-                      PIC: {s.auditor1}{s.auditor2 ? ' & ' + s.auditor2 : ''} · {s.waktu_proses ?? '—'}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      {exC > 0 && <span className="badge-ex">{exC} EX</span>}
-                      {sdC > 0 && <span className="badge-sd">{sdC} SD</span>}
-                      {niC > 0 && <span className="badge-ni">{niC} NI</span>}
-                      {skC > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface text-ink-3">{skC} skip</span>}
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-lg font-extrabold text-brand">{s.avg_score_pct ?? '—'}<span className="text-xs">%</span></div>
-                    <div className="text-[10px] text-ink-3">avg</div>
-                  </div>
-                </div>
+          {groupedByMonth.map(({ label, sessions: groupSessions }) => (
+            <div key={label} className="flex flex-col gap-2">
+              {/* Month label */}
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-xs font-extrabold text-ink-2 uppercase tracking-wider">{label}</span>
+                <div className="flex-1 h-px bg-surface-border" />
+                <span className="text-[11px] text-ink-3">{groupSessions.length} sesi</span>
               </div>
-            )
-          })}
+              {/* Sessions */}
+              {groupSessions.map((s, i) => {
+                const exC = s.audit_results.filter(r => r.kategori === 'EX').length
+                const sdC = s.audit_results.filter(r => r.kategori === 'SD').length
+                const niC = s.audit_results.filter(r => r.kategori === 'NI').length
+                const skC = s.audit_results.filter(r => r.skipped).length
+                return (
+                  <div key={s.id} className="card fade-up hover:shadow-card-hover transition-all cursor-pointer"
+                    style={{ animationDelay: `${i * 0.03}s` }}
+                    onClick={() => openDetail(s)}>
+                    <div className="p-4 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-brand-pale flex items-center justify-center flex-shrink-0">
+                        <span className="material-icons-round text-brand">assignment_turned_in</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-extrabold text-ink">{s.lokasi.nama}</span>
+                          <span className="text-[11px] text-ink-3">·</span>
+                          <span className="text-[11px] text-ink-3">{formatTanggal(s.tanggal)}</span>
+                        </div>
+                        <div className="text-[11px] text-ink-3 truncate">
+                          PIC: {s.auditor1}{s.auditor2 ? ' & ' + s.auditor2 : ''} · {s.waktu_proses ?? '—'}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {exC > 0 && <span className="badge-ex">{exC} EX</span>}
+                          {sdC > 0 && <span className="badge-sd">{sdC} SD</span>}
+                          {niC > 0 && <span className="badge-ni">{niC} NI</span>}
+                          {skC > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface text-ink-3">{skC} skip</span>}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-lg font-extrabold text-brand">{s.avg_score_pct ?? '—'}<span className="text-xs">%</span></div>
+                        <div className="text-[10px] text-ink-3">avg</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
         </div>
       </main>
 
@@ -485,8 +605,8 @@ ${warnHtml}
                                   <th className="px-2 py-2 text-left font-bold text-ink-2">#</th>
                                   <th className="px-2 py-2 text-left font-bold text-ink-2 min-w-[90px]">NAMA</th>
                                   {detailChecklist.map(item => (
-                                    <th key={item.id} className="px-1.5 py-2 text-center font-bold text-ink-2 text-[10px] min-w-[55px] uppercase">
-                                      {item.item.length > 7 ? item.item.substring(0, 7) + '…' : item.item}
+                                    <th key={item.id} className="px-1.5 py-2 text-center font-bold text-ink-2 text-[10px] min-w-[55px] max-w-[80px] uppercase leading-tight break-words">
+                                      {item.item}
                                     </th>
                                   ))}
                                   <th className="px-2 py-2 text-center font-bold text-ink-2">TOTAL</th>
@@ -497,52 +617,83 @@ ${warnHtml}
                               <tbody>
                                 {detailResults.map((r, i) => {
                                   const isSkipped = r.skipped
-                                  const scores = (r.scores as Record<string, number>) ?? {}
+                                  const scores  = (r.scores  as Record<string, number>) ?? {}
+                                  const remarks = (r.remarks as Record<string, string>)  ?? {}
+                                  const commentItems = detailChecklist.filter(item => remarks[item.id]?.trim())
                                   return (
-                                    <tr key={r.id} className={`border-t border-surface-border ${isSkipped ? 'opacity-50' : ''}`}>
-                                      <td className="px-2 py-2 text-ink-3">{i + 1}</td>
-                                      <td className={`px-2 py-2 whitespace-nowrap ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`}>{r.auditee_name}</td>
-                                      {detailChecklist.map(item => (
-                                        <td key={item.id} className="px-1.5 py-2 text-center">
+                                    <Fragment key={r.id}>
+                                      <tr className={`border-t border-surface-border ${isSkipped ? 'opacity-50' : ''}`}>
+                                        <td className="px-2 py-2 text-ink-3">{i + 1}</td>
+                                        <td className={`px-2 py-2 whitespace-nowrap ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`}>{r.auditee_name}</td>
+                                        {detailChecklist.map(item => (
+                                          <td key={item.id} className="px-1.5 py-2 text-center">
+                                            {isSkipped
+                                              ? <span className="text-ink-3">—</span>
+                                              : <ScoreBubble val={scores[item.id]} config={detailScoreConfig} />
+                                            }
+                                          </td>
+                                        ))}
+                                        <td className="px-2 py-2 text-center font-bold text-ink">
+                                          {isSkipped ? <span className="text-ink-3">—</span> : (r.total_score ?? '—')}
+                                        </td>
+                                        <td className="px-2 py-2 text-center font-bold text-brand">
+                                          {isSkipped ? <span className="text-ink-3">—</span> : `${r.persen ?? 0}%`}
+                                        </td>
+                                        <td className="px-2 py-2 text-center">
                                           {isSkipped
-                                            ? <span className="text-ink-3">—</span>
-                                            : <ScoreBubble val={scores[item.id]} config={detailScoreConfig} />
+                                            ? <span className="text-[10px] italic text-ink-3">Dilewati</span>
+                                            : <KategoriBadge k={r.kategori ?? null} />
                                           }
                                         </td>
-                                      ))}
-                                      <td className="px-2 py-2 text-center font-bold text-ink">
-                                        {isSkipped ? <span className="text-ink-3">—</span> : (r.total_score ?? '—')}
-                                      </td>
-                                      <td className="px-2 py-2 text-center font-bold text-brand">
-                                        {isSkipped ? <span className="text-ink-3">—</span> : `${r.persen ?? 0}%`}
-                                      </td>
-                                      <td className="px-2 py-2 text-center">
-                                        {isSkipped
-                                          ? <span className="text-[10px] italic text-ink-3">Dilewati</span>
-                                          : <KategoriBadge k={r.kategori ?? null} />
-                                        }
-                                      </td>
-                                    </tr>
+                                      </tr>
+                                      {commentItems.length > 0 && (
+                                        <tr key={`${r.id}-remarks`} className="bg-warning/5 border-t border-warning/20">
+                                          <td />
+                                          <td colSpan={detailChecklist.length + 4} className="px-2 py-1.5">
+                                            <div className="flex items-start gap-1.5 flex-wrap">
+                                              <span className="material-icons-round text-warning text-sm mt-0.5 flex-shrink-0">chat_bubble_outline</span>
+                                              <div className="flex flex-wrap gap-2">
+                                                {commentItems.map(item => (
+                                                  <span key={item.id} className="text-[10px] text-ink-2">
+                                                    <span className="font-bold text-warning">{item.item}:</span>{' '}
+                                                    <span className="italic">{remarks[item.id]}</span>
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </Fragment>
                                   )
                                 })}
                               </tbody>
                             </table>
                           </div>
 
-                          {/* Sign approval */}
-                          <div className="p-5 border-t border-surface-border grid grid-cols-2 gap-6">
+                        </div>
+
+                        {/* Sign approval — separate card */}
+                        <div className="card">
+                          <div className={`p-5 grid gap-6 ${detail.auditor2 ? 'grid-cols-2' : 'grid-cols-1 max-w-xs'}`}>
                             <div>
-                              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-8">PIC Auditor 6S</div>
-                              <div className="border-b-2 border-ink-2 mb-1.5 w-28" />
-                              <div className="font-bold text-sm text-brand">{detail.auditor1}</div>
+                              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-3">PIC Auditor 6S</div>
+                              <div className="text-3xl text-brand mb-1" style={{ fontFamily: "'Dancing Script', cursive" }}>
+                                {detail.auditor1}
+                              </div>
+                              <div className="border-b border-ink-3/30 mb-2 w-40" />
+                              <div className="font-bold text-sm text-ink mb-0.5">{detail.auditor1}</div>
                               <div className="text-[11px] text-ink-3">PIC 6S {detail.lokasi.nama}</div>
                             </div>
                             {detail.auditor2 && (
-                              <div className="text-right">
-                                <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-8">Mengetahui:</div>
-                                <div className="border-b-2 border-ink-2 mb-1.5 w-28 ml-auto" />
-                                <div className="font-bold text-sm text-brand">{detail.auditor2}</div>
-                                <div className="text-[11px] text-ink-3">Safety Coordinator</div>
+                              <div>
+                                <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-3">PIC Auditor 6S</div>
+                                <div className="text-3xl text-brand mb-1" style={{ fontFamily: "'Dancing Script', cursive" }}>
+                                  {detail.auditor2}
+                                </div>
+                                <div className="border-b border-ink-3/30 mb-2 w-40" />
+                                <div className="font-bold text-sm text-ink mb-0.5">{detail.auditor2}</div>
+                                <div className="text-[11px] text-ink-3">PIC 6S {detail.lokasi.nama}</div>
                               </div>
                             )}
                           </div>

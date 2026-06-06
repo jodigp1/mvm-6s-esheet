@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Dancing+Script:wght@600;700&display=swap');
 @import url('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
 
 @tailwind base;
@@ -150,8 +150,11 @@
     page-break-inside: avoid;
   }
 
-  /* Ensure text colors render */
-  table td, table th { color: inherit !important; }
+  /* Prevent any overflow clipping so all table rows (incl. comment rows) print */
+  .overflow-x-auto,
+  .overflow-hidden,
+  .overflow-y-auto,
+  .overflow-auto { overflow: visible !important; }
 
   @page {
     margin: 12mm;
