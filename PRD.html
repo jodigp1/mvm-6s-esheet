@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PRD — 6S Audit MVM</title>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:       #7C6EF5;
+      --brand-pale:  #F0EEFF;
+      --brand-dark:  #5A4ED4;
+      --success:     #10C98F;
+      --warning:     #F59E0B;
+      --danger:      #FF5C7A;
+      --ink:         #1A1A2E;
+      --ink-2:       #4B5563;
+      --ink-3:       #9CA3AF;
+      --surface:     #F8F7FF;
+      --border:      #E8E6FF;
+      --white:       #FFFFFF;
+      --radius:      12px;
+      --radius-lg:   20px;
+      --shadow:      0 2px 16px rgba(124,110,245,0.08);
+      --shadow-hover:0 8px 32px rgba(124,110,245,0.18);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--surface);
+      color: var(--ink);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      padding: 28px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-logo {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .sidebar-logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--brand-pale);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      width: 100%;
+    }
+
+    .sidebar-logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--brand);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+
+    .sidebar-logo-text { font-weight: 800; font-size: 13px; color: var(--brand); line-height: 1.2; }
+    .sidebar-logo-sub  { font-size: 10px; color: var(--ink-3); font-weight: 500; }
+
+    .nav-section {
+      padding: 0 16px;
+      margin-bottom: 8px;
+    }
+
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--ink-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 8px 8px 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      color: var(--ink-2);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+      margin-bottom: 2px;
+    }
+
+    .nav-item:hover { background: var(--brand-pale); color: var(--brand); }
+    .nav-item .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+
+    /* ── Main Content ───────────────────────────────────────── */
+    .main {
+      padding: 48px 56px;
+      max-width: 900px;
+    }
+
+    /* ── Hero ───────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, var(--brand) 0%, #9F95F7 100%);
+      border-radius: var(--radius-lg);
+      padding: 40px 44px;
+      color: white;
+      margin-bottom: 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 200px; height: 200px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 50%;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; right: 60px;
+      width: 280px; height: 280px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 50%;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      font-size: 14px;
+      opacity: 0.85;
+      max-width: 520px;
+      line-height: 1.7;
+    }
+
+    .hero-meta {
+      display: flex;
+      gap: 20px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .hero-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .hero-meta-label { font-size: 10px; opacity: 0.65; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .hero-meta-value { font-size: 13px; font-weight: 700; }
+
+    /* ── Section ────────────────────────────────────────────── */
+    .section {
+      margin-bottom: 48px;
+      scroll-margin-top: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .section-number {
+      width: 32px;
+      height: 32px;
+      background: var(--brand);
+      color: white;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .section-title { font-size: 20px; font-weight: 800; color: var(--ink); }
+
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 24px 0 10px;
+    }
+
+    p { color: var(--ink-2); margin-bottom: 12px; line-height: 1.7; }
+
+    /* ── Cards ──────────────────────────────────────────────── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .card-head {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-2);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .card-body { padding: 20px; }
+
+    /* ── Tables ─────────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    thead th {
+      background: var(--surface);
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid var(--border);
+    }
+
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface); }
+
+    tbody td {
+      padding: 10px 14px;
+      color: var(--ink-2);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+
+    tbody td:first-child { font-weight: 600; color: var(--ink); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+
+    /* ── Tags & Badges ──────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .badge-brand  { background: var(--brand-pale); color: var(--brand); }
+    .badge-green  { background: #ECFDF5; color: #059669; }
+    .badge-yellow { background: #FFFBEB; color: #D97706; }
+    .badge-red    { background: #FFF1F3; color: #E11D48; }
+    .badge-gray   { background: #F3F4F6; color: #6B7280; }
+
+    /* ── Tech Stack Grid ────────────────────────────────────── */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .tech-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tech-card-label { font-size: 10px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+    .tech-card-value { font-size: 13px; font-weight: 700; color: var(--ink); }
+
+    /* ── Feature Cards ──────────────────────────────────────── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .feature-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feature-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--brand-pale);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .feature-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .feature-path  { font-size: 11px; font-family: 'SF Mono', 'Fira Code', monospace; color: var(--brand); background: var(--brand-pale); padding: 2px 6px; border-radius: 6px; display: inline-block; }
+    .feature-desc  { font-size: 12px; color: var(--ink-2); line-height: 1.6; }
+
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .feature-list li {
+      font-size: 12px;
+      color: var(--ink-2);
+      padding-left: 14px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .feature-list li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--brand);
+      font-weight: 700;
+    }
+
+    /* ── Scoring Section ────────────────────────────────────── */
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .score-cell {
+      text-align: center;
+      padding: 14px 10px;
+      border-radius: var(--radius);
+      border: 2px solid transparent;
+    }
+
+    .score-num  { font-size: 22px; font-weight: 900; }
+    .score-lbl  { font-size: 10px; font-weight: 600; margin-top: 4px; }
+
+    .kat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .kat-card {
+      padding: 16px;
+      border-radius: var(--radius);
+      text-align: center;
+    }
+
+    .kat-card .kat-label  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .kat-card .kat-pct    { font-size: 22px; font-weight: 900; }
+    .kat-card .kat-name   { font-size: 11px; margin-top: 2px; }
+
+    /* ── Flow ───────────────────────────────────────────────── */
+    .flow {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--ink-2);
+      line-height: 2;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ── Changelog ──────────────────────────────────────────── */
+    .changelog-item {
+      display: flex;
+      gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .changelog-item:last-child { border-bottom: none; }
+    .changelog-version { font-size: 12px; font-weight: 800; color: var(--brand); min-width: 36px; }
+    .changelog-date    { font-size: 12px; color: var(--ink-3); min-width: 90px; }
+    .changelog-desc    { font-size: 13px; color: var(--ink-2); }
+
+    /* ── Utility ────────────────────────────────────────────── */
+    .divider { height: 1px; background: var(--border); margin: 24px 0; }
+    .text-small { font-size: 12px; color: var(--ink-3); }
+    .text-mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+    .mt-0 { margin-top: 0 !important; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .main { padding: 28px 20px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .score-grid { grid-template-columns: repeat(5, 1fr); }
+      .kat-grid { grid-template-columns: 1fr; }
+      .hero { padding: 28px 24px; }
+      .hero h1 { font-size: 24px; }
+    }
+
+    @media print {
+      .sidebar { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      .main { padding: 24px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── SIDEBAR ────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-badge">
+        <div class="sidebar-logo-icon">📋</div>
+        <div>
+          <div class="sidebar-logo-text">6S Audit MVM</div>
+          <div class="sidebar-logo-sub">Product Requirements Document</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Dokumen</div>
+      <a href="#overview"    class="nav-item"><span class="nav-dot"></span> Ringkasan Produk</a>
+      <a href="#tujuan"      class="nav-item"><span class="nav-dot"></span> Tujuan Produk</a>
+      <a href="#stack"       class="nav-item"><span class="nav-dot"></span> Tech Stack</a>
+      <a href="#database"    class="nav-item"><span class="nav-dot"></span> Arsitektur Database</a>
+      <a href="#penilaian"   class="nav-item"><span class="nav-dot"></span> Logika Penilaian</a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Fitur & Halaman</div>
+      <a href="#login"      class="nav-item"><span class="nav-dot"></span> Login</a>
+      <a href="#setup"      class="nav-item"><span class="nav-dot"></span> Setup Sesi</a>
+      <a href="#audit"      class="nav-item"><span class="nav-dot"></span> Audit</a>
+      <a href="#review"     class="nav-item"><span class="nav-dot"></span> Review</a>
+      <a href="#history"    class="nav-item"><span class="nav-dot"></span> History</a>
+      <a href="#dashboard"  class="nav-item"><span class="nav-dot"></span> Dashboard</a>
+      <a href="#settings"   class="nav-item"><span class="nav-dot"></span> Settings</a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Lainnya</div>
+      <a href="#userflow"   class="nav-item"><span class="nav-dot"></span> User Flow</a>
+      <a href="#nonfunc"    class="nav-item"><span class="nav-dot"></span> Non-Functional</a>
+      <a href="#outscope"   class="nav-item"><span class="nav-dot"></span> Out of Scope</a>
+      <a href="#changelog"  class="nav-item"><span class="nav-dot"></span> Changelog</a>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ───────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-badge">📄 PRD v1.0 · Internal Tool</div>
+      <h1>6S Audit MVM</h1>
+      <p>Aplikasi web internal untuk mendigitalisasi proses audit 6S (Sort, Set in Order, Shine, Standardize, Sustain, Safety) di lingkungan kerja — menggantikan pencatatan manual berbasis kertas dan spreadsheet.</p>
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Versi</span>
+          <span class="hero-meta-value">1.0</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Tanggal</span>
+          <span class="hero-meta-value">6 Juni 2026</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Status</span>
+          <span class="hero-meta-value">✅ Production</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Platform</span>
+          <span class="hero-meta-value">Web App (Netlify)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. Ringkasan -->
+    <section class="section" id="overview">
+      <div class="section-header">
+        <div class="section-number">1</div>
+        <div class="section-title">Ringkasan Produk</div>
+      </div>
+      <p>
+        <strong>6S Audit MVM</strong> adalah aplikasi web internal untuk mengelola dan menjalankan audit 6S di lingkungan kerja manufaktur.
+        Aplikasi ini dibangun untuk menggantikan proses audit manual berbasis kertas, mempercepat pengisian skor,
+        menyimpan histori audit secara terpusat di cloud, dan menyediakan analitik berbasis data.
+      </p>
+      <p><strong>Target pengguna:</strong> Tim PIC 6S dan auditor internal perusahaan.</p>
+    </section>
+
+    <!-- 2. Tujuan -->
+    <section class="section" id="tujuan">
+      <div class="section-header">
+        <div class="section-number">2</div>
+        <div class="section-title">Tujuan Produk</div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <ul class="feature-list">
+            <li>Digitalisasi proses audit 6S yang sebelumnya manual/spreadsheet</li>
+            <li>Memudahkan pencatatan skor dan catatan temuan per auditee secara real-time</li>
+            <li>Menyimpan histori audit secara terpusat di cloud (Supabase)</li>
+            <li>Menyediakan laporan dan analitik untuk monitoring tren kualitas 6S per lokasi/periode</li>
+            <li>Menghasilkan dokumen audit (PDF) yang dapat diarsipkan beserta tanda tangan digital</li>
+            <li>Sistem scalable — berfungsi tanpa batas tahun, lokasi dapat dikonfigurasi</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Tech Stack -->
+    <section class="section" id="stack">
+      <div class="section-header">
+        <div class="section-number">3</div>
+        <div class="section-title">Tech Stack</div>
+      </div>
+      <div class="tech-grid">
+        <div class="tech-card">
+          <div class="tech-card-label">Framework</div>
+          <div class="tech-card-value">Next.js 14.2.5</div>
+          <div class="text-small">App Router</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Bahasa</div>
+          <div class="tech-card-value">TypeScript</div>
+          <div class="text-small">Strict mode</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Styling</div>
+          <div class="tech-card-value">Tailwind CSS v3</div>
+          <div class="text-small">Custom design system</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Database</div>
+          <div class="tech-card-value">Supabase</div>
+          <div class="text-small">PostgreSQL + Auth</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Charts</div>
+          <div class="tech-card-value">Recharts</div>
+          <div class="text-small">v2.x</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">PNG Export</div>
+          <div class="tech-card-value">html2canvas</div>
+          <div class="text-small">v1.4.1, lazy loaded</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">PDF Export</div>
+          <div class="tech-card-value">window.print()</div>
+          <div class="text-small">+ HTML new-window</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Signature Font</div>
+          <div class="tech-card-value">Dancing Script</div>
+          <div class="text-small">Google Fonts 600/700</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Deployment</div>
+          <div class="tech-card-value">Netlify</div>
+          <div class="text-small">Auto-deploy dari GitHub</div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-card-label">Auth</div>
+          <div class="tech-card-value">Custom Password</div>
+          <div class="text-small">Internal single password</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Database -->
+    <section class="section" id="database">
+      <div class="section-header">
+        <div class="section-number">4</div>
+        <div class="section-title">Arsitektur Database</div>
+      </div>
+
+      <h3>lokasi</h3>
+      <div class="card">
+        <table>
+          <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td><span class="badge badge-brand">uuid</span></td><td>Primary key</td></tr>
+            <tr><td>nama</td><td><span class="badge badge-gray">string</span></td><td>Nama lokasi (misal: OTC, Cabin)</td></tr>
+            <tr><td>kode</td><td><span class="badge badge-gray">string</span></td><td>Kode singkat</td></tr>
+            <tr><td>jumlah_pic</td><td><span class="badge badge-gray">number</span></td><td>Jumlah PIC auditor (1 atau 2)</td></tr>
+            <tr><td>aktif</td><td><span class="badge badge-gray">boolean</span></td><td>Soft delete</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>members</h3>
+      <div class="card">
+        <table>
+          <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td><span class="badge badge-brand">uuid</span></td><td>Primary key</td></tr>
+            <tr><td>lokasi_id</td><td><span class="badge badge-yellow">uuid FK</span></td><td>FK → lokasi</td></tr>
+            <tr><td>nama</td><td><span class="badge badge-gray">string</span></td><td>Nama auditee</td></tr>
+            <tr><td>urutan</td><td><span class="badge badge-gray">number</span></td><td>Urutan tampil dalam list</td></tr>
+            <tr><td>aktif</td><td><span class="badge badge-gray">boolean</span></td><td>Soft delete</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>checklist_items</h3>
+      <div class="card">
+        <table>
+          <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td><span class="badge badge-brand">uuid</span></td><td>Primary key</td></tr>
+            <tr><td>lokasi_id</td><td><span class="badge badge-yellow">uuid FK</span></td><td>FK → lokasi</td></tr>
+            <tr><td>nomor</td><td><span class="badge badge-gray">number</span></td><td>Nomor urut item checklist</td></tr>
+            <tr><td>item</td><td><span class="badge badge-gray">string</span></td><td>Nama item audit</td></tr>
+            <tr><td>deskripsi</td><td><span class="badge badge-gray">string?</span></td><td>Penjelasan tambahan (opsional)</td></tr>
+            <tr><td>bobot</td><td><span class="badge badge-gray">number</span></td><td>Bobot item dalam perhitungan skor total</td></tr>
+            <tr><td>aktif</td><td><span class="badge badge-gray">boolean</span></td><td>Soft delete</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>audit_sessions</h3>
+      <div class="card">
+        <table>
+          <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td><span class="badge badge-brand">uuid</span></td><td>Primary key</td></tr>
+            <tr><td>lokasi_id</td><td><span class="badge badge-yellow">uuid FK</span></td><td>FK → lokasi</td></tr>
+            <tr><td>tanggal</td><td><span class="badge badge-gray">date</span></td><td>Tanggal audit</td></tr>
+            <tr><td>auditor1</td><td><span class="badge badge-gray">string</span></td><td>Nama PIC auditor utama</td></tr>
+            <tr><td>auditor2</td><td><span class="badge badge-gray">string?</span></td><td>Nama PIC auditor kedua</td></tr>
+            <tr><td>status</td><td><span class="badge badge-brand">enum</span></td><td><span class="text-mono">draft</span> atau <span class="text-mono">completed</span></td></tr>
+            <tr><td>waktu_proses</td><td><span class="badge badge-gray">string?</span></td><td>Durasi audit (HH:MM:SS)</td></tr>
+            <tr><td>avg_score_pct</td><td><span class="badge badge-gray">number?</span></td><td>Rata-rata skor seluruh sesi (%)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>audit_results</h3>
+      <div class="card">
+        <table>
+          <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td><span class="badge badge-brand">uuid</span></td><td>Primary key</td></tr>
+            <tr><td>session_id</td><td><span class="badge badge-yellow">uuid FK</span></td><td>FK → audit_sessions</td></tr>
+            <tr><td>lokasi_id</td><td><span class="badge badge-yellow">uuid FK</span></td><td>FK → lokasi</td></tr>
+            <tr><td>auditee_name</td><td><span class="badge badge-gray">string</span></td><td>Nama auditee</td></tr>
+            <tr><td>scores</td><td><span class="badge badge-gray">JSON</span></td><td><span class="text-mono">{ item_id: nilai }</span> per checklist item</td></tr>
+            <tr><td>remarks</td><td><span class="badge badge-gray">JSON</span></td><td><span class="text-mono">{ item_id: catatan }</span> temuan/komentar</td></tr>
+            <tr><td>total_score</td><td><span class="badge badge-gray">number?</span></td><td>Total skor terbobot</td></tr>
+            <tr><td>max_score</td><td><span class="badge badge-gray">number?</span></td><td>Skor maksimal terbobot</td></tr>
+            <tr><td>persen</td><td><span class="badge badge-gray">number?</span></td><td>Persentase (total/max × 100)</td></tr>
+            <tr><td>kategori</td><td><span class="badge badge-brand">enum</span></td><td><span class="badge badge-green">EX</span> <span class="badge badge-yellow">SD</span> <span class="badge badge-red">NI</span></td></tr>
+            <tr><td>skipped</td><td><span class="badge badge-gray">boolean</span></td><td>Apakah auditee di-skip</td></tr>
+            <tr><td>skip_reason</td><td><span class="badge badge-gray">string?</span></td><td>Alasan skip</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. Penilaian -->
+    <section class="section" id="penilaian">
+      <div class="section-header">
+        <div class="section-number">5</div>
+        <div class="section-title">Logika Penilaian</div>
+      </div>
+
+      <h3>Skala Skor (0–4)</h3>
+      <div class="score-grid">
+        <div class="score-cell" style="background:#FFF1F3;border-color:#FECDD3">
+          <div class="score-num" style="color:#E11D48">0</div>
+          <div class="score-lbl" style="color:#E11D48">Sangat Buruk</div>
+        </div>
+        <div class="score-cell" style="background:#FFF7ED;border-color:#FED7AA">
+          <div class="score-num" style="color:#EA580C">1</div>
+          <div class="score-lbl" style="color:#EA580C">Buruk</div>
+        </div>
+        <div class="score-cell" style="background:#FFFBEB;border-color:#FDE68A">
+          <div class="score-num" style="color:#D97706">2</div>
+          <div class="score-lbl" style="color:#D97706">Cukup</div>
+        </div>
+        <div class="score-cell" style="background:#F0FDF4;border-color:#BBF7D0">
+          <div class="score-num" style="color:#16A34A">3</div>
+          <div class="score-lbl" style="color:#16A34A">Baik</div>
+        </div>
+        <div class="score-cell" style="background:#F0EEFF;border-color:#C4B5FD">
+          <div class="score-num" style="color:#7C6EF5">4</div>
+          <div class="score-lbl" style="color:#7C6EF5">Sangat Baik</div>
+        </div>
+      </div>
+
+      <h3>Formula Perhitungan</h3>
+      <div class="card">
+        <div class="card-body" style="font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:2;color:var(--ink-2)">
+          Total Skor    = Σ (nilai_item × bobot_item)<br>
+          Skor Maks     = Σ (4 × bobot_item)<br>
+          Persentase    = (Total Skor / Skor Maks) × 100
+        </div>
+      </div>
+
+      <h3>Kategori Hasil</h3>
+      <div class="kat-grid">
+        <div class="kat-card" style="background:#ECFDF5;border:1px solid #A7F3D0">
+          <div class="kat-label" style="color:#059669">Excellent</div>
+          <div class="kat-pct" style="color:#059669">≥ 85%</div>
+          <div class="kat-name" style="color:#6B7280">Badge: EX</div>
+        </div>
+        <div class="kat-card" style="background:#FFFBEB;border:1px solid #FDE68A">
+          <div class="kat-label" style="color:#D97706">Standard</div>
+          <div class="kat-pct" style="color:#D97706">60 – 84%</div>
+          <div class="kat-name" style="color:#6B7280">Badge: SD</div>
+        </div>
+        <div class="kat-card" style="background:#FFF1F3;border:1px solid #FECDD3">
+          <div class="kat-label" style="color:#E11D48">Need Improvement</div>
+          <div class="kat-pct" style="color:#E11D48">&lt; 60%</div>
+          <div class="kat-name" style="color:#6B7280">Badge: NI</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:#FDE68A;background:#FFFBEB">
+        <div class="card-body" style="display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px">⚠️</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#D97706;margin-bottom:4px">Catatan Wajib</div>
+            <div style="font-size:13px;color:#92400E">Skor ≤ 2 mewajibkan pengisian field catatan/temuan. Textarea tampil otomatis dengan visual warning.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Fitur & Halaman -->
+    <section class="section" id="login">
+      <div class="section-header">
+        <div class="section-number">6</div>
+        <div class="section-title">Fitur & Halaman</div>
+      </div>
+
+      <h3 class="mt-0">6.1 Login <span class="feature-path">/login</span></h3>
+      <div class="card">
+        <div class="card-body">
+          <ul class="feature-list">
+            <li>Form input password tunggal (internal shared password)</li>
+            <li>Validasi di server-side; token disimpan di cookie HTTP-only</li>
+            <li>Redirect ke <span class="text-mono">/</span> setelah berhasil login</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="setup">
+      <h3 class="mt-0">6.2 Setup Sesi <span class="feature-path">/ (Home)</span></h3>
+      <div class="card">
+        <div class="card-head">Fungsi: Membuat atau melanjutkan sesi audit</div>
+        <div class="card-body">
+          <p><strong>Alur 3 Langkah:</strong></p>
+          <ul class="feature-list">
+            <li><strong>Langkah 1 — Pilih Lokasi:</strong> Visual card per lokasi, icon dinamis, highlight saat aktif</li>
+            <li><strong>Langkah 2 — Tanggal Audit:</strong> Custom date picker (navigasi bulan, quick-pick Hari ini / Kemarin)</li>
+            <li><strong>Langkah 3 — PIC Auditor:</strong> Searchable dropdown; jumlah PIC mengikuti konfigurasi lokasi (1 atau 2)</li>
+          </ul>
+          <div class="divider"></div>
+          <p><strong>Resume Sesi Draft:</strong></p>
+          <ul class="feature-list">
+            <li>Sesi berstatus <span class="text-mono">draft</span> tampil sebagai card peringatan kuning</li>
+            <li>Tombol Resume melanjutkan ke <span class="text-mono">/audit</span> dari posisi auditee yang belum diisi</li>
+          </ul>
+          <div class="divider"></div>
+          <p><strong>Validasi:</strong> Lokasi, tanggal, dan auditor 1 wajib diisi. Auditor 2 wajib jika <span class="text-mono">jumlah_pic ≥ 2</span>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="audit">
+      <h3 class="mt-0">6.3 Audit <span class="feature-path">/audit</span></h3>
+      <div class="card">
+        <div class="card-head">Fungsi: Mengisi skor dan catatan untuk setiap auditee</div>
+        <div class="card-body">
+          <ul class="feature-list">
+            <li>Header sticky: nama auditee aktif, lokasi, PIC, timer real-time (HH:MM:SS)</li>
+            <li>Progress bar + dot indicator (abu=belum, hijau=selesai, kuning=skip, biru=aktif)</li>
+            <li>Modal daftar auditee untuk navigasi langsung ke auditee mana saja</li>
+            <li>Referensi skor (label + warna) tampil di atas checklist</li>
+            <li>Setiap checklist item: tombol skor 0–4 + field catatan</li>
+            <li>Skor ≤ 2: textarea catatan wajib dengan visual warning kuning</li>
+            <li>Skor ≥ 3: input teks catatan opsional</li>
+            <li>Modal Skip: pilih alasan (Cuti / Sakit / Dinas luar / Lainnya) + keterangan bebas</li>
+            <li>Setelah auditee terakhir: simpan waktu → redirect ke <span class="text-mono">/review</span></li>
+            <li>Auto-resume: data yang tersimpan di Supabase di-load otomatis</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="review">
+      <h3 class="mt-0">6.4 Review <span class="feature-path">/review</span></h3>
+      <div class="card">
+        <div class="card-head">Fungsi: Melihat ringkasan hasil audit + export PDF</div>
+        <div class="card-body">
+          <ul class="feature-list">
+            <li>Header info sesi: lokasi, tanggal, PIC, durasi audit</li>
+            <li>Tabel rekap: baris per auditee × kolom per checklist item</li>
+            <li>Setiap sel skor berwarna sesuai <span class="text-mono">score_config</span></li>
+            <li>Sub-row catatan temuan untuk item dengan skor rendah (muncul di bawah baris auditee)</li>
+            <li>Kolom total skor, persentase, dan badge kategori (EX/SD/NI)</li>
+            <li>Baris skip ditandai khusus dengan alasan</li>
+            <li>Kartu tanda tangan digital (Dancing Script font + nama tercetak tebal)</li>
+            <li>Export PDF via <span class="text-mono">window.print()</span> dengan @media print CSS khusus (A4 landscape)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="history">
+      <h3 class="mt-0">6.5 History <span class="feature-path">/history</span></h3>
+      <div class="card">
+        <div class="card-head">Fungsi: Melihat semua sesi audit yang sudah selesai</div>
+        <div class="card-body">
+          <p><strong>Filter:</strong> Tahun (dinamis dari Supabase) · Bulan · Kategori · Urutan</p>
+          <ul class="feature-list">
+            <li>List sesi: tanggal, lokasi, PIC, jumlah auditee, avg score, badge kategori dominan</li>
+            <li>Klik sesi → modal detail lengkap (tabel + sub-row catatan + tanda tangan)</li>
+            <li>Export PDF dari modal: full HTML di new window + auto-print (termasuk baris catatan)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="dashboard">
+      <h3 class="mt-0">6.6 Dashboard Analisis <span class="feature-path">/dashboard</span></h3>
+      <div class="card">
+        <div class="card-head">Fungsi: Analitik dan visualisasi data audit</div>
+        <div class="card-body">
+          <p><strong>Filter Global:</strong> Tahun (dinamis) · Lokasi · Semester · Kategori</p>
+          <div class="divider"></div>
+          <p><strong>KPI Cards:</strong></p>
+          <table>
+            <thead><tr><th>Card</th><th>Warna</th><th>Keterangan</th></tr></thead>
+            <tbody>
+              <tr><td>Total Sesi</td><td><span class="badge" style="background:#EDE9FE;color:#7C6EF5">#7C6EF5</span></td><td>Jumlah sesi audit selesai</td></tr>
+              <tr><td>Auditee Dinilai</td><td><span class="badge" style="background:#ECFDF5;color:#059669">#10C98F</span></td><td>Total auditee dinilai</td></tr>
+              <tr><td>Avg Score</td><td><span class="badge badge-green">Hijau</span></td><td>Rata-rata persentase skor</td></tr>
+              <tr><td>Di-skip</td><td><span class="badge badge-yellow">Kuning</span></td><td>Total auditee di-skip</td></tr>
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <p><strong>Charts:</strong></p>
+          <table>
+            <thead><tr><th>Chart</th><th>Tipe</th><th>Export</th></tr></thead>
+            <tbody>
+              <tr><td>Distribusi Kategori</td><td>Donut / Pie</td><td><span class="badge badge-brand">PNG</span></td></tr>
+              <tr><td>Per Lokasi</td><td>Bar Chart</td><td><span class="badge badge-brand">PNG</span> <span class="badge badge-green">CSV</span></td></tr>
+              <tr><td>Tren Distribusi</td><td>Stacked Bar (Bulanan/Semester)</td><td><span class="badge badge-brand">PNG</span> <span class="badge badge-green">CSV</span></td></tr>
+              <tr><td>Ranking Auditee</td><td>Tabel (sort by avg%)</td><td><span class="badge badge-brand">PNG</span> <span class="badge badge-green">CSV</span></td></tr>
+              <tr><td>Auditee Di-skip</td><td>List Card</td><td><span class="badge badge-brand">PNG</span></td></tr>
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <p><strong>Period Label:</strong> Tampil di subtitle setiap chart — format: <span class="text-mono">Tahun · Semester · Lokasi</span></p>
+          <p><strong>PNG Export:</strong> html2canvas, tombol export disembunyikan selama capture (visibility hidden)</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="settings">
+      <h3 class="mt-0">6.7 Settings <span class="feature-path">/settings</span></h3>
+      <div class="card">
+        <div class="card-head">Fungsi: Konfigurasi master data</div>
+        <div class="card-body">
+          <table>
+            <thead><tr><th>Tab</th><th>Fitur</th></tr></thead>
+            <tbody>
+              <tr><td>Lokasi</td><td>Tambah · Edit inline · Hapus (dengan konfirmasi modal)</td></tr>
+              <tr><td>Member</td><td>Filter per lokasi · Tambah · Edit inline · Hapus (dengan konfirmasi modal)</td></tr>
+              <tr><td>Checklist</td><td>Filter per lokasi · Tambah (nama, nomor, deskripsi, bobot) · Edit inline · Hapus (dengan konfirmasi modal)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. User Flow -->
+    <section class="section" id="userflow">
+      <div class="section-header">
+        <div class="section-number">7</div>
+        <div class="section-title">Alur Pengguna (User Flow)</div>
+      </div>
+      <div class="flow">Login
+  └─→ Setup Sesi (/)
+        ├─→ Resume draft sesi  ──────────→ Audit
+        └─→ Pilih Lokasi + Tanggal + PIC
+              └─→ Mulai Audit (/audit)
+                    ├─→ Skip auditee (modal alasan)
+                    └─→ Isi skor per checklist item
+                          └─→ Simpan &amp; lanjut (loop per auditee)
+                                └─→ Auditee terakhir selesai
+                                      └─→ Review (/review)
+                                            ├─→ Export PDF
+                                            └─→ Selesai → kembali ke Home
+
+Dari Home (navbar):
+  ├─→ Dashboard Analisis (/dashboard)
+  ├─→ History (/history)
+  └─→ Settings (/settings)</div>
+    </section>
+
+    <!-- 8. Non-Functional -->
+    <section class="section" id="nonfunc">
+      <div class="section-header">
+        <div class="section-number">8</div>
+        <div class="section-title">Non-Functional Requirements</div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Aspek</th><th>Requirement</th></tr></thead>
+          <tbody>
+            <tr><td>Performa</td><td>First load &lt; 3 detik (Netlify CDN)</td></tr>
+            <tr><td>Responsif</td><td>Mobile-first, max-width 512px untuk halaman audit</td></tr>
+            <tr><td>Keamanan</td><td>Password internal, semua mutation API via server route</td></tr>
+            <tr><td>Ketersediaan</td><td>Netlify + Supabase (uptime ~99.9%)</td></tr>
+            <tr><td>Skalabilitas</td><td>Filter tahun dinamis — berfungsi tanpa batas tahun</td></tr>
+            <tr><td>Aksesibilitas</td><td>ARIA labels pada form, kontras warna memadai</td></tr>
+            <tr><td>Offline</td><td>Tidak didukung (requires Supabase connection)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 9. Out of Scope -->
+    <section class="section" id="outscope">
+      <div class="section-header">
+        <div class="section-number">9</div>
+        <div class="section-title">Batasan &amp; Out of Scope (v1.0)</div>
+      </div>
+      <div class="card" style="border-color:#FECDD3;background:#FFF1F3">
+        <div class="card-body">
+          <ul class="feature-list">
+            <li>Tidak ada multi-tenant / multi-perusahaan</li>
+            <li>Tidak ada notifikasi email atau push notification</li>
+            <li>Tidak ada peran user berbeda (semua user setara)</li>
+            <li>Tidak ada versioning checklist (perubahan langsung overwrite)</li>
+            <li>Export hanya PDF dan PNG/CSV (tidak ada Excel/XLSX)</li>
+            <li>Tidak ada mode offline</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. Changelog -->
+    <section class="section" id="changelog">
+      <div class="section-header">
+        <div class="section-number">10</div>
+        <div class="section-title">Changelog</div>
+      </div>
+      <div class="card">
+        <div class="card-body" style="padding:0 20px">
+          <div class="changelog-item">
+            <div class="changelog-version">v1.0</div>
+            <div class="changelog-date">6 Jun 2026</div>
+            <div class="changelog-desc">Initial release — audit, review, history, dashboard analisis, settings (lokasi/member/checklist) dengan delete confirm, filter tahun dinamis, custom dropdown, PNG export per chart, tanda tangan handwriting font, export PDF dengan comment rows</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:32px;padding:20px;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);text-align:center">
+        <div style="font-size:12px;color:var(--ink-3)">6S Audit MVM — Internal Tool · Next.js 14 · Supabase · Netlify</div>
+        <div style="font-size:11px;color:var(--ink-3);margin-top:4px">PRD v1.0 · 6 Juni 2026</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>
