@@ -140,9 +140,9 @@ export default function DashboardPage() {
     supabase.from('audit_sessions').select('tanggal').eq('status', 'completed')
       .then(({ data: sessions }) => {
         if (!sessions) return
-        const years = [...new Set(
+        const years = Array.from(new Set(
           sessions.map(s => new Date(s.tanggal + 'T00:00:00').getFullYear().toString())
-        )].sort((a, b) => parseInt(b) - parseInt(a))
+        )).sort((a, b) => parseInt(b) - parseInt(a))
         setAvailYears(years)
         setTahun(years[0] ?? String(new Date().getFullYear()))
       })
