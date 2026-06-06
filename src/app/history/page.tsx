@@ -119,134 +119,131 @@ export default function HistoryPage() {
     XLSX.writeFile(wb, `6S-Audit_${lokasiNama}_${s.tanggal}.xlsx`)
   }
 
-  async function exportSessionPDF(s: SessionWithLokasi) {
+  function exportSessionPDF(s: SessionWithLokasi) {
     if (!detailResults.length || !detailChecklist.length) return
-    const { default: jsPDF }     = await import('jspdf')
-    const { default: autoTable } = await import('jspdf-autotable')
-    const doc  = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-    const W = 297, M = 14
 
     const lokasiNama = s.lokasi.nama
     const tanggalFmt = new Date(s.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
     const bulan      = new Date(s.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
     const nonSkipped = detailResults.filter(r => !r.skipped)
-    const skipped    = detailResults.filter(r => r.skipped)
+    const skippedList = detailResults.filter(r => r.skipped)
     const avgPct     = nonSkipped.length > 0
       ? Math.round(nonSkipped.reduce((sum, r) => sum + (r.persen ?? 0), 0) / nonSkipped.length) : 0
     const exCount    = nonSkipped.filter(r => r.kategori === 'EX').length
 
-    // Green header
-    doc.setFillColor(16, 201, 143)
-    doc.roundedRect(M, 8, W - M * 2, 62, 4, 4, 'F')
+    const scoreColor = (val: number) => {
+      if (val === 4) return '#6455DC'
+      if (val === 3) return '#10A070'
+      return '#DC4444'
+    }
+    const katLabel = (k: string | null) => k === 'EX' ? 'Excellent' : k === 'SD' ? 'Standard' : k === 'NI' ? 'Need Improvement' : '—'
+    const katColor = (k: string | null) => k === 'EX' ? '#10A070' : k === 'SD' ? '#B08000' : '#DC4444'
 
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(16); doc.setFont('helvetica', 'bold')
-    doc.text(`Hasil Audit 6S MVM (${bulan})`, M + 8, 21)
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal')
-    doc.text(`${lokasiNama} — ${tanggalFmt}`, M + 8, 29)
-    doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.3)
-    doc.line(M + 8, 33, W - M - 8, 33)
-    doc.setFontSize(9)
-    doc.text(
-      `PIC Auditor: ${s.auditor1}${s.auditor2 ? ' & ' + s.auditor2 : ''}   |   ${detailChecklist.length} Item Checklist   |   Waktu: ${s.waktu_proses ?? '—'}`,
-      M + 8, 40
-    )
-
-    const kpis = [
-      { label: 'Jumlah Auditee', value: String(nonSkipped.length) },
-      { label: 'Rata-rata',       value: `${avgPct}%` },
-      { label: 'Jumlah Excellent', value: String(exCount) },
-    ]
-    const boxW = (W - M * 2 - 16 - 8) / 3
-    kpis.forEach((kpi, i) => {
-      const x = M + 8 + i * (boxW + 4)
-      doc.setFillColor(255, 255, 255)
-      doc.roundedRect(x, 44, boxW, 20, 3, 3, 'F')
-      doc.setTextColor(16, 100, 70)
-      doc.setFontSize(14); doc.setFont('helvetica', 'bold')
-      doc.text(kpi.value, x + 5, 54)
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 120, 90)
-      doc.text(kpi.label, x + 5, 60)
-    })
-
-    // Table
-    doc.setTextColor(0, 0, 0)
-    const head = [['#', 'NAMA', ...detailChecklist.map(c => c.item.length > 10 ? c.item.substring(0, 10) + '.' : c.item), 'TOTAL', '%', 'KATEGORI']]
-    const body = detailResults.map((r, i) => {
+    const tableRows = detailResults.map((r, i) => {
       const isSkipped = r.skipped
       const scores = (r.scores as Record<string, number>) ?? {}
-      if (isSkipped) return [i + 1, r.auditee_name, ...detailChecklist.map(() => '—'), '—', '—', 'Dilewati']
-      return [
-        i + 1, r.auditee_name,
-        ...detailChecklist.map(c => scores[c.id] !== undefined ? scores[c.id] : '—'),
-        r.total_score ?? '—',
-        r.persen !== null ? `${r.persen}%` : '—',
-        r.kategori ? KATEGORI_LABEL[r.kategori] : '—',
-      ]
-    })
+      const cells = detailChecklist.map(item => {
+        if (isSkipped) return `<td style="text-align:center;color:#9CA3AF">—</td>`
+        const v = scores[item.id]
+        if (v === undefined) return `<td style="text-align:center;color:#9CA3AF">—</td>`
+        const c = scoreColor(v)
+        return `<td style="text-align:center"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${c}22;color:${c};font-weight:800;font-size:11px">${v}</span></td>`
+      }).join('')
+      if (isSkipped) {
+        return `<tr style="opacity:0.5"><td style="color:#9CA3AF">${i+1}</td><td style="font-style:italic;color:#9CA3AF">${r.auditee_name}</td>${detailChecklist.map(() => '<td style="text-align:center;color:#9CA3AF">—</td>').join('')}<td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF;font-style:italic">Dilewati</td></tr>`
+      }
+      const kc = katColor(r.kategori ?? null)
+      return `<tr><td style="color:#9CA3AF">${i+1}</td><td style="font-weight:700">${r.auditee_name}</td>${cells}<td style="text-align:center;font-weight:700">${r.total_score ?? '—'}</td><td style="text-align:center;font-weight:700;color:#10C98F">${r.persen ?? 0}%</td><td style="text-align:center;font-weight:700;color:${kc}">${katLabel(r.kategori ?? null)}</td></tr>`
+    }).join('')
 
-    autoTable(doc, {
-      head, body, startY: 76,
-      styles: { fontSize: 8, cellPadding: 2.5 },
-      headStyles: { fillColor: [240, 238, 255], textColor: [50, 40, 100], fontStyle: 'bold', fontSize: 7 },
-      alternateRowStyles: { fillColor: [252, 251, 255] },
-      columnStyles: { 1: { minCellWidth: 28, fontStyle: 'bold' } },
-      didParseCell: (data) => {
-        if (data.section === 'body') {
-          const raw = data.row.raw as (string | number)[]
-          if (raw[raw.length - 1] === 'Dilewati') {
-            data.cell.styles.textColor = [160, 160, 160]; data.cell.styles.fontStyle = 'italic'
-          } else {
-            const val = data.cell.raw
-            if (val === 'Excellent')        { data.cell.styles.textColor = [16, 160, 110]; data.cell.styles.fontStyle = 'bold' }
-            if (val === 'Standard')         { data.cell.styles.textColor = [180, 130, 0];  data.cell.styles.fontStyle = 'bold' }
-            if (val === 'Need Improvement') { data.cell.styles.textColor = [200, 50, 80];  data.cell.styles.fontStyle = 'bold' }
-            const col = data.column.index
-            if (col >= 2 && col < 2 + detailChecklist.length) {
-              const num = Number(val)
-              if (!isNaN(num)) {
-                if (num === 4)      data.cell.styles.textColor = [100, 85, 220]
-                else if (num === 3) data.cell.styles.textColor = [16, 160, 110]
-                else if (num <= 2)  data.cell.styles.textColor = [200, 80, 80]
-              }
-            }
-          }
-        }
-      },
-    })
+    const headCols = detailChecklist.map(c => `<th style="text-align:center;min-width:55px">${c.item.length > 9 ? c.item.substring(0,9)+'.' : c.item}</th>`).join('')
 
-    const tableBottom = (doc as any).lastAutoTable.finalY
-    const signY = tableBottom + 10
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80)
-    doc.text('PIC AUDITOR 6S', M + 8, signY)
-    if (s.auditor2) doc.text('MENGETAHUI:', W - M - 8 - 60, signY)
-    doc.setDrawColor(80, 80, 80); doc.setLineWidth(0.4)
-    doc.line(M + 8, signY + 16, M + 70, signY + 16)
-    if (s.auditor2) doc.line(W - M - 8 - 60, signY + 16, W - M - 8, signY + 16)
-    doc.setTextColor(100, 85, 220); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-    doc.text(s.auditor1, M + 8, signY + 21)
-    doc.setTextColor(80, 80, 80); doc.setFontSize(8); doc.setFont('helvetica', 'normal')
-    doc.text(`PIC 6S ${lokasiNama}`, M + 8, signY + 26)
-    if (s.auditor2) {
-      doc.setTextColor(100, 85, 220); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-      doc.text(s.auditor2, W - M - 8 - 60, signY + 21)
-      doc.setTextColor(80, 80, 80); doc.setFontSize(8); doc.setFont('helvetica', 'normal')
-      doc.text('Safety Coordinator', W - M - 8 - 60, signY + 26)
-    }
+    const signHtml = `
+      <div style="display:flex;justify-content:space-between;padding:24px 0 16px;border-top:1px solid #E5E2FF;margin-top:8px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:36px">PIC AUDITOR 6S</div>
+          <div style="border-bottom:2px solid #6B7280;width:120px;margin-bottom:6px"></div>
+          <div style="font-weight:700;font-size:13px;color:#6455DC">${s.auditor1}</div>
+          <div style="font-size:11px;color:#9CA3AF">PIC 6S ${lokasiNama}</div>
+        </div>
+        ${s.auditor2 ? `<div style="text-align:right">
+          <div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;margin-bottom:36px">MENGETAHUI:</div>
+          <div style="border-bottom:2px solid #6B7280;width:120px;margin-bottom:6px;margin-left:auto"></div>
+          <div style="font-weight:700;font-size:13px;color:#6455DC">${s.auditor2}</div>
+          <div style="font-size:11px;color:#9CA3AF">Safety Coordinator</div>
+        </div>` : ''}
+      </div>`
 
-    if (skipped.length > 0) {
-      const warnY = signY + 34
-      doc.setFillColor(255, 242, 235)
-      doc.roundedRect(M, warnY, W - M * 2, 16, 3, 3, 'F')
-      doc.setDrawColor(255, 143, 92); doc.setLineWidth(0.3)
-      doc.roundedRect(M, warnY, W - M * 2, 16, 3, 3, 'S')
-      doc.setTextColor(180, 70, 10); doc.setFontSize(9); doc.setFont('helvetica', 'bold')
-      doc.text(`${skipped.length} Auditee Dilewati`, M + 8, warnY + 6)
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal')
-      doc.text(skipped.map(r => r.auditee_name).join(', '), M + 8, warnY + 12)
-    }
+    const warnHtml = skippedList.length > 0 ? `
+      <div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:10px;padding:12px 16px;margin-top:16px;display:flex;align-items:flex-start;gap:10px">
+        <span style="font-size:20px;margin-top:1px">⚠️</span>
+        <div>
+          <div style="color:#B45309;font-weight:700;font-size:13px">${skippedList.length} Auditee Dilewati</div>
+          <div style="color:#6B7280;font-size:11px;margin-top:2px">${skippedList.map(r => r.auditee_name).join(', ')}</div>
+        </div>
+      </div>` : ''
 
-    doc.save(`6S-Audit_${lokasiNama}_${s.tanggal}.pdf`)
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Audit 6S — ${lokasiNama} ${tanggalFmt}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:20px;background:#fff;font-size:13px;color:#1a1a2e}
+  @page{margin:12mm;size:A4 landscape}
+  .header{background:linear-gradient(135deg,#10C98F 0%,#0ea572 100%);border-radius:14px;padding:22px 28px;color:#fff;margin-bottom:24px}
+  .header h1{font-size:20px;font-weight:800;margin:0 0 4px}
+  .header p{font-size:12px;opacity:.85;margin:0 0 6px}
+  .header hr{border:none;border-top:1px solid rgba(255,255,255,.35);margin:10px 0}
+  .header .meta{font-size:11px;opacity:.9;margin-bottom:16px}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .kpi-box{background:rgba(255,255,255,.18);border-radius:10px;padding:10px 14px}
+  .kpi-val{font-size:22px;font-weight:800}
+  .kpi-lbl{font-size:10px;opacity:.75;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px}
+  th{background:#F5F3FF;color:#3B2F8A;font-weight:700;padding:8px 8px;border-bottom:2px solid #E5E2FF;font-size:10px;text-transform:uppercase;text-align:left}
+  td{padding:7px 8px;border-bottom:1px solid #F0EEF8}
+  tr:nth-child(even){background:#FAFAFF}
+  .tbl-wrap{background:#fff;border:1px solid #E5E2FF;border-radius:12px;overflow:hidden;padding:0 0 4px}
+  .tbl-head{padding:14px 16px 10px;border-bottom:1px solid #E5E2FF}
+  .tbl-head h2{font-size:13px;font-weight:700;margin:0 0 2px}
+  .tbl-head p{font-size:11px;color:#9CA3AF;margin:0}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Hasil Audit 6S MVM (${bulan})</h1>
+  <p>${lokasiNama} — ${tanggalFmt}</p>
+  <hr>
+  <div class="meta">PIC Auditor: ${s.auditor1}${s.auditor2 ? ' &amp; ' + s.auditor2 : ''} &nbsp;|&nbsp; ${detailChecklist.length} Item Checklist &nbsp;|&nbsp; Waktu: ${s.waktu_proses ?? '—'}</div>
+  <div class="kpi-grid">
+    <div class="kpi-box"><div class="kpi-val">${nonSkipped.length}</div><div class="kpi-lbl">Jumlah Auditee</div></div>
+    <div class="kpi-box"><div class="kpi-val">${avgPct}%</div><div class="kpi-lbl">Rata-rata</div></div>
+    <div class="kpi-box"><div class="kpi-val">${exCount}</div><div class="kpi-lbl">Jumlah Excellent</div></div>
+  </div>
+</div>
+<div class="tbl-wrap">
+  <div class="tbl-head">
+    <h2>Rekap audit penilaian 6S di ${lokasiNama} (${bulan}) | Auditor: ${s.auditor1}</h2>
+    <p>${nonSkipped.length} dari ${detailResults.length} auditee dinilai</p>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>NAMA</th>${headCols}<th style="text-align:center">TOTAL</th><th style="text-align:center">%</th><th style="text-align:center">KATEGORI</th></tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div style="padding:0 16px">${signHtml}</div>
+</div>
+${warnHtml}
+<script>window.onload=function(){window.print()}<\/script>
+</body>
+</html>`
+
+    const w = window.open('', '_blank', 'width=1100,height=800')
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
   }
 
   function formatTanggal(d: string) {

@@ -114,3 +114,37 @@
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-thumb { background: #E8E6FF; border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Print styles ───────────────────────────────────────────── */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print { display: none !important; }
+
+  body {
+    background: white !important;
+    background-image: none !important;
+    min-height: unset !important;
+  }
+
+  .fade-up { animation: none !important; }
+
+  /* Remove card shadows for print */
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #e8e6ff !important;
+  }
+
+  /* Score bubbles — keep background colors */
+  .score-bubble {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

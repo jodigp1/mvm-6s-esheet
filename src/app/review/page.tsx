@@ -98,140 +98,8 @@ export default function ReviewPage() {
     XLSX.writeFile(wb, `6S-Audit_${lokasiNama}_${session.tanggal}.xlsx`)
   }
 
-  async function exportPDF() {
-    if (!session) return
-    const { default: jsPDF }     = await import('jspdf')
-    const { default: autoTable } = await import('jspdf-autotable')
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-    const W = 297, M = 14
-
-    // ── Green header ─────────────────────────────────────────────
-    doc.setFillColor(16, 201, 143)
-    doc.roundedRect(M, 8, W - M * 2, 62, 4, 4, 'F')
-
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(16); doc.setFont('helvetica', 'bold')
-    doc.text(`Hasil Audit 6S MVM (${bulan})`, M + 8, 21)
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal')
-    doc.text(`${lokasiNama} — ${tanggalFmt}`, M + 8, 29)
-
-    doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.3)
-    doc.line(M + 8, 33, W - M - 8, 33)
-
-    doc.setFontSize(9)
-    doc.text(
-      `PIC Auditor: ${session.auditor1}${session.auditor2 ? ' & ' + session.auditor2 : ''}   |   ${checklist.length} Item Checklist   |   Waktu: ${waktuProses}`,
-      M + 8, 40
-    )
-
-    // KPI boxes
-    const kpis = [
-      { label: 'Jumlah Auditee', value: String(nonSkipped.length) },
-      { label: 'Rata-rata',       value: `${avgPct}%` },
-      { label: 'Jumlah Excellent', value: String(exCount) },
-    ]
-    const boxW = (W - M * 2 - 16 - 8) / 3
-    kpis.forEach((kpi, i) => {
-      const x = M + 8 + i * (boxW + 4)
-      doc.setFillColor(255, 255, 255)
-      doc.roundedRect(x, 44, boxW, 20, 3, 3, 'F')
-      doc.setTextColor(16, 100, 70)
-      doc.setFontSize(14); doc.setFont('helvetica', 'bold')
-      doc.text(kpi.value, x + 5, 54)
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 120, 90)
-      doc.text(kpi.label, x + 5, 60)
-    })
-
-    // ── Table ────────────────────────────────────────────────────
-    doc.setTextColor(0, 0, 0)
-    const head = [['#', 'NAMA', ...checklist.map(c => c.item.length > 10 ? c.item.substring(0, 10) + '.' : c.item), 'TOTAL', '%', 'KATEGORI']]
-    const body = allMembers.map((name, i) => {
-      const r = results.find(res => res.auditee_name === name)
-      const isSkipped = r?.skipped ?? !r
-      const scores = (r?.scores as Record<string, number>) ?? {}
-      if (isSkipped) {
-        return [i + 1, name, ...checklist.map(() => '—'), '—', '—', 'Dilewati']
-      }
-      return [
-        i + 1, name,
-        ...checklist.map(c => scores[c.id] !== undefined ? scores[c.id] : '—'),
-        r?.total_score ?? '—',
-        r?.persen !== null && r?.persen !== undefined ? `${r.persen}%` : '—',
-        r?.kategori ? KATEGORI_LABEL[r.kategori] : '—',
-      ]
-    })
-
-    autoTable(doc, {
-      head, body,
-      startY: 76,
-      styles: { fontSize: 8, cellPadding: 2.5 },
-      headStyles: { fillColor: [240, 238, 255], textColor: [50, 40, 100], fontStyle: 'bold', fontSize: 7 },
-      alternateRowStyles: { fillColor: [252, 251, 255] },
-      columnStyles: { 1: { minCellWidth: 28, fontStyle: 'bold' } },
-      didParseCell: (data) => {
-        if (data.section === 'body') {
-          const raw = data.row.raw as (string | number)[]
-          const isSkippedRow = raw[raw.length - 1] === 'Dilewati'
-          if (isSkippedRow) {
-            data.cell.styles.textColor = [160, 160, 160]
-            data.cell.styles.fontStyle = 'italic'
-          } else {
-            const val = data.cell.raw
-            if (val === 'Excellent')        { data.cell.styles.textColor = [16, 160, 110]; data.cell.styles.fontStyle = 'bold' }
-            if (val === 'Standard')         { data.cell.styles.textColor = [180, 130, 0];  data.cell.styles.fontStyle = 'bold' }
-            if (val === 'Need Improvement') { data.cell.styles.textColor = [200, 50, 80];  data.cell.styles.fontStyle = 'bold' }
-            const col = data.column.index
-            if (col >= 2 && col < 2 + checklist.length) {
-              const num = Number(val)
-              if (!isNaN(num)) {
-                if (num === 4)      data.cell.styles.textColor = [100, 85, 220]
-                else if (num === 3) data.cell.styles.textColor = [16, 160, 110]
-                else if (num <= 2)  data.cell.styles.textColor = [200, 80, 80]
-              }
-            }
-          }
-        }
-      },
-    })
-
-    // ── Sign approval ────────────────────────────────────────────
-    const tableBottom = (doc as any).lastAutoTable.finalY
-    const signY = tableBottom + 10
-
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80)
-    doc.text('PIC AUDITOR 6S', M + 8, signY)
-    if (session.auditor2) doc.text('MENGETAHUI:', W - M - 8 - 60, signY)
-
-    doc.setDrawColor(80, 80, 80); doc.setLineWidth(0.4)
-    doc.line(M + 8, signY + 16, M + 70, signY + 16)
-    if (session.auditor2) doc.line(W - M - 8 - 60, signY + 16, W - M - 8, signY + 16)
-
-    doc.setTextColor(100, 85, 220); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-    doc.text(session.auditor1, M + 8, signY + 21)
-    doc.setTextColor(80, 80, 80); doc.setFontSize(8); doc.setFont('helvetica', 'normal')
-    doc.text(`PIC 6S ${lokasiNama}`, M + 8, signY + 26)
-
-    if (session.auditor2) {
-      doc.setTextColor(100, 85, 220); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-      doc.text(session.auditor2, W - M - 8 - 60, signY + 21)
-      doc.setTextColor(80, 80, 80); doc.setFontSize(8); doc.setFont('helvetica', 'normal')
-      doc.text('Safety Coordinator', W - M - 8 - 60, signY + 26)
-    }
-
-    // ── Skipped warning ──────────────────────────────────────────
-    if (skipped.length > 0) {
-      const warnY = signY + 34
-      doc.setFillColor(255, 242, 235)
-      doc.roundedRect(M, warnY, W - M * 2, 16, 3, 3, 'F')
-      doc.setDrawColor(255, 143, 92); doc.setLineWidth(0.3)
-      doc.roundedRect(M, warnY, W - M * 2, 16, 3, 3, 'S')
-      doc.setTextColor(180, 70, 10); doc.setFontSize(9); doc.setFont('helvetica', 'bold')
-      doc.text(`${skipped.length} Auditee Dilewati`, M + 8, warnY + 6)
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal')
-      doc.text(skipped.map(r => r.auditee_name).join(', '), M + 8, warnY + 12)
-    }
-
-    doc.save(`6S-Audit_${lokasiNama}_${session.tanggal}.pdf`)
+  function exportPDF() {
+    window.print()
   }
 
   function ScoreBubble({ val }: { val: number | undefined }) {
@@ -239,7 +107,7 @@ export default function ReviewPage() {
     const sc = scoreConfig.find(s => s.nilai === val)
     const color = sc?.warna ?? '#9CA3AF'
     return (
-      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-extrabold"
+      <span className="score-bubble inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-extrabold"
         style={{ background: color + '22', color }}>
         {val}
       </span>
@@ -248,8 +116,14 @@ export default function ReviewPage() {
 
   function KategoriBadge({ k }: { k: string | null }) {
     if (!k) return null
-    const cls = k === 'EX' ? 'badge-ex' : k === 'SD' ? 'badge-sd' : 'badge-ni'
-    return <span className={cls}>{k}</span>
+    const label = KATEGORI_LABEL[k] ?? k
+    const cls   = k === 'EX' ? 'badge-ex' : k === 'SD' ? 'badge-sd' : 'badge-ni'
+    return (
+      <>
+        <span className={`${cls} no-print`}>{k}</span>
+        <span className={`hidden print:inline font-bold text-xs ${k === 'EX' ? 'text-ex' : k === 'SD' ? 'text-yellow' : 'text-danger'}`}>{label}</span>
+      </>
+    )
   }
 
   if (submitted) {
@@ -276,7 +150,7 @@ export default function ReviewPage() {
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="bg-white border-b border-surface-border sticky top-0 z-50 shadow-card">
+      <header className="no-print bg-white border-b border-surface-border sticky top-0 z-50 shadow-card">
         <div className="max-w-3xl mx-auto px-5 h-[60px] flex items-center gap-3">
           <button onClick={() => router.back()}
             className="w-9 h-9 rounded-xl border border-surface-border flex items-center justify-center text-ink-2 hover:bg-brand-pale hover:border-brand hover:text-brand transition-all">
@@ -431,7 +305,7 @@ export default function ReviewPage() {
         )}
 
         {/* ── SUBMIT ──────────────────────────────────────────── */}
-        <div className="card p-4 fade-up border-success/30 bg-success-light/30" style={{ animationDelay: '0.1s' }}>
+        <div className="no-print card p-4 fade-up border-success/30 bg-success-light/30" style={{ animationDelay: '0.1s' }}>
           <div className="flex items-start gap-3 mb-4">
             <span className="material-icons-round text-success text-xl mt-0.5">info</span>
             <p className="text-xs text-ink-2 leading-relaxed">
