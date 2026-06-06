@@ -83,7 +83,7 @@ function LoginContent() {
           </form>
         </div>
 
-        <p className="text-center text-[11px] text-ink-3 mt-5">PT Asahimas Chemical — Internal Tool</p>
+        <p className="text-center text-[11px] text-ink-3 mt-5">Internal Tool</p>
       </div>
     </div>
   )
