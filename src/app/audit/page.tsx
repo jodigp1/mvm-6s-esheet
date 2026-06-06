@@ -99,36 +99,6 @@ export default function AuditPage() {
       : `${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`
   }
 
-  if (!session) return null
-
-  const members    = session.members
-  const auditee    = members[currentIdx]
-  const current    = results[auditee] ?? { scores: {}, remarks: {}, skipped: false, skip_reason: null, saved: false }
-  const doneCount  = members.filter(m => results[m]?.saved).length
-
-  // ── Hitung score current auditee ──────────────────────────────
-  function hitungScore() {
-    const total   = checklist.reduce((s, item) => s + (current.scores[item.id] ?? 0) * item.bobot, 0)
-    const maxPoss = checklist.reduce((s, item) => s + 4 * item.bobot, 0)
-    const persen  = maxPoss > 0 ? Math.round((total / maxPoss) * 100) : 0
-    return { total: Math.round(total), max: Math.round(maxPoss), persen }
-  }
-
-  // ── Update score satu item ────────────────────────────────────
-  function setScore(itemId: string, nilai: number) {
-    setResults(prev => ({
-      ...prev,
-      [auditee]: { ...current, scores: { ...current.scores, [itemId]: nilai } },
-    }))
-  }
-
-  function setRemark(itemId: string, text: string) {
-    setResults(prev => ({
-      ...prev,
-      [auditee]: { ...current, remarks: { ...current.remarks, [itemId]: text } },
-    }))
-  }
-
   // ── Save ke Supabase ──────────────────────────────────────────
   const saveResult = useCallback(async (name: string, data: AuditeeResult) => {
     if (!session) return
@@ -160,6 +130,36 @@ export default function AuditPage() {
     setResults(prev => ({ ...prev, [name]: { ...data, saved: true } }))
     setSaving(false)
   }, [session, checklist])
+
+  if (!session) return null
+
+  const members    = session.members
+  const auditee    = members[currentIdx]
+  const current    = results[auditee] ?? { scores: {}, remarks: {}, skipped: false, skip_reason: null, saved: false }
+  const doneCount  = members.filter(m => results[m]?.saved).length
+
+  // ── Hitung score current auditee ──────────────────────────────
+  function hitungScore() {
+    const total   = checklist.reduce((s, item) => s + (current.scores[item.id] ?? 0) * item.bobot, 0)
+    const maxPoss = checklist.reduce((s, item) => s + 4 * item.bobot, 0)
+    const persen  = maxPoss > 0 ? Math.round((total / maxPoss) * 100) : 0
+    return { total: Math.round(total), max: Math.round(maxPoss), persen }
+  }
+
+  // ── Update score satu item ────────────────────────────────────
+  function setScore(itemId: string, nilai: number) {
+    setResults(prev => ({
+      ...prev,
+      [auditee]: { ...current, scores: { ...current.scores, [itemId]: nilai } },
+    }))
+  }
+
+  function setRemark(itemId: string, text: string) {
+    setResults(prev => ({
+      ...prev,
+      [auditee]: { ...current, remarks: { ...current.remarks, [itemId]: text } },
+    }))
+  }
 
   // ── Simpan & lanjut ke berikutnya ────────────────────────────
   async function handleNext() {
