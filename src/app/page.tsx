@@ -114,8 +114,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
           {/* Grid */}
           <div className="px-3 pb-4">
             <div className="grid grid-cols-7 mb-1">
-              {HARI.map(h => (
-                <div key={h} className="text-center text-[10px] font-bold text-ink-3 py-1">{h}</div>
+              {HARI.map((h, i) => (
+                <div key={h} className={`text-center text-[10px] font-bold py-1 ${i >= 5 ? 'text-danger/70' : 'text-ink-3'}`}>{h}</div>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-0.5">
@@ -123,6 +123,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1
                 const t = new Date(viewYear, viewMonth, day); t.setHours(0,0,0,0)
+                const dow      = (t.getDay() + 6) % 7 // Mon=0, Sat=5, Sun=6
+                const isWeekend  = dow >= 5
                 const isToday    = t.getTime() === today.getTime()
                 const isSelected = selected && t.getTime() === selected.getTime()
                 return (
@@ -130,6 +132,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
                     className={`h-8 w-full rounded-xl text-xs font-semibold transition-all ${
                       isSelected ? 'bg-brand text-white font-extrabold shadow-sm' :
                       isToday    ? 'bg-brand-pale text-brand font-bold ring-1 ring-brand/30' :
+                      isWeekend  ? 'text-danger hover:bg-danger-light' :
                                    'text-ink hover:bg-surface'
                     }`}>
                     {day}
@@ -254,8 +257,9 @@ export default function SetupSesiPage() {
   })
   const [auditor1, setAuditor1] = useState('')
   const [auditor2, setAuditor2] = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [ripple,   setRipple]   = useState<{ id: string; x: number; y: number; key: number } | null>(null)
+  const [loading,      setLoading]      = useState(false)
+  const [ripple,       setRipple]       = useState<{ id: string; x: number; y: number; key: number } | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null)
 
   const lokasiSelected = lokasiList.find(l => l.id === lokasiId)
   const butuhDuaPic    = (lokasiSelected?.jumlah_pic ?? 0) >= 2
@@ -402,7 +406,7 @@ export default function SetupSesiPage() {
                   <button onClick={() => handleResume(sesi)} className="btn-primary text-xs px-3 py-2 flex items-center gap-1 flex-shrink-0">
                     <span className="material-icons-round text-sm">play_arrow</span> Resume
                   </button>
-                  <button onClick={() => handleCancelDraft(sesi.id)}
+                  <button onClick={() => setCancelTarget(sesi.id)}
                     className="w-8 h-8 rounded-xl flex items-center justify-center text-danger hover:bg-danger-light transition-all flex-shrink-0"
                     title="Batalkan sesi ini">
                     <span className="material-icons-round text-sm">delete</span>
@@ -588,6 +592,33 @@ export default function SetupSesiPage() {
       <footer className="text-center py-3 text-[10px] text-ink-3 border-t border-surface-border">
         © 2026 MVM Dept. | MVM-6S-esheet v1
       </footer>
+
+      {/* Modal konfirmasi batalkan sesi */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-[fadeIn_0.15s_ease]"
+          onClick={() => setCancelTarget(null)}>
+          <div className="bg-white rounded-3xl shadow-card-hover p-6 mx-5 max-w-sm w-full flex flex-col gap-4 animate-[fadeUp_0.2s_ease]"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-danger-light flex items-center justify-center">
+                <span className="material-icons-round text-danger text-2xl">delete_forever</span>
+              </div>
+              <div className="text-base font-extrabold text-ink">Batalkan sesi ini?</div>
+              <div className="text-sm text-ink-3">Sesi draft akan dihapus dan tidak bisa dikembalikan.</div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCancelTarget(null)}
+                className="flex-1 btn-secondary py-2.5 text-sm">
+                Batal
+              </button>
+              <button onClick={() => { handleCancelDraft(cancelTarget); setCancelTarget(null) }}
+                className="flex-1 py-2.5 text-sm font-bold rounded-2xl bg-danger text-white hover:bg-danger/90 transition-all">
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
