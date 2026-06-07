@@ -291,8 +291,8 @@ export default function HistoryPage() {
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:20px;background:#fff;font-size:13px;color:#1a1a2e}
-  @page{margin:12mm;size:A4 landscape}
+  body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:20px;background:#fff;font-size:13px;color:#1a1a2e;width:277mm;min-width:277mm}
+  @page{size:landscape;margin:12mm}
   .header{background:${headerGradient};border-radius:14px;padding:22px 28px;color:#fff;margin-bottom:24px}
   .header h1{font-size:20px;font-weight:800;margin:0 0 4px}
   .header p{font-size:12px;opacity:.85;margin:0 0 6px}
@@ -340,7 +340,7 @@ ${warnHtml}
 </body>
 </html>`
 
-    const w = window.open('', '_blank', 'width=1100,height=800')
+    const w = window.open('', '_blank', 'width=1400,height=750')
     if (!w) return
     w.document.write(html)
     w.document.close()
@@ -618,11 +618,11 @@ ${warnHtml}
                             <div className="text-[11px] text-ink-3">{nonSkipped.length} dari {detailResults.length} auditee dinilai</div>
                           </div>
                           <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
+                            <table className="text-xs" style={{ width: 'max-content', minWidth: '100%' }}>
                               <thead>
                                 <tr className="bg-surface">
                                   <th className="px-2 py-2 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
-                                  <th className="py-2 text-left font-bold text-ink-2" style={{ padding: '6px 6px', maxWidth: '80px' }}>NAMA</th>
+                                  <th className="px-2 py-2 text-left font-bold text-ink-2 whitespace-nowrap">NAMA</th>
                                   {detailChecklist.map(item => {
                                     const words = item.item.split(' ')
                                     const n = item.item.length
@@ -657,7 +657,7 @@ ${warnHtml}
                                     <Fragment key={r.id}>
                                       <tr className={`border-t border-surface-border ${isSkipped ? 'opacity-50' : ''}`}>
                                         <td className="px-2 py-2 text-ink-3">{i + 1}</td>
-                                        <td className={`px-2 py-2 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ maxWidth: '80px', wordBreak: 'break-word' }}>{r.auditee_name}</td>
+                                        <td className={`px-2 py-2 whitespace-nowrap ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`}>{r.auditee_name}</td>
                                         {detailChecklist.map(item => (
                                           <td key={item.id} className="px-1.5 py-2 text-center">
                                             {isSkipped

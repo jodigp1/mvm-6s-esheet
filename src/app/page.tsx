@@ -446,11 +446,13 @@ export default function SetupSesiPage() {
                         boxShadow:      active ? `0 0 0 3px ${cardColor}18` : 'none',
                       }}>
                       {/* Ripple */}
-                      {ripple?.id === lokasi.id && (
-                        <span key={ripple.key} className="absolute pointer-events-none rounded-full animate-ripple"
-                          style={{ left: ripple.x - 40, top: ripple.y - 40, width: 80, height: 80,
-                            background: active ? 'rgba(255,255,255,0.4)' : `${cardColor}30` }} />
-                      )}
+                      {ripple?.id === lokasi.id && (<>
+                        <span key={`ring-${ripple.key}`} className="absolute inset-0 rounded-2xl pointer-events-none animate-border-ping"
+                          style={{ border: `3px solid ${active ? 'rgba(255,255,255,0.9)' : cardColor}` }} />
+                        <span key={`fill-${ripple.key}`} className="absolute pointer-events-none rounded-full animate-ripple"
+                          style={{ left: ripple.x - 60, top: ripple.y - 60, width: 120, height: 120,
+                            background: active ? 'rgba(255,255,255,0.55)' : `${cardColor}70` }} />
+                      </>)}
                       {/* Icon circle */}
                       <div className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all"
                         style={{ background: active ? cardColor : cardBg }}>
