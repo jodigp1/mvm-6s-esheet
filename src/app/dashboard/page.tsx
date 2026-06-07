@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  LineChart, Line,
 } from 'recharts'
 import { supabase } from '@/lib/supabase'
 import type { Lokasi } from '@/types/database'
@@ -18,9 +19,11 @@ interface DashboardData {
   distribusi:    { name: string; value: number; color: string; key: string }[]
   trenBulan:     { bulan: string; EX: number; SD: number; NI: number; avg: number }[]
   trenSemester:  { bulan: string; EX: number; SD: number; NI: number; avg: number }[]
-  perLokasi:     { lokasi: string; avg: number; EX: number; SD: number; NI: number; total: number }[]
-  ranking:       { nama: string; lokasi: string; totalAudit: number; avgPct: number; dominanKat: string | null; exCount: number; sdCount: number; niCount: number }[]
-  skippedList:   { nama: string; lokasi: string; tanggal: string }[]
+  perLokasi:       { lokasi: string; avg: number; EX: number; SD: number; NI: number; total: number }[]
+  perLokasiTren:   Record<string, number | string | null>[]
+  lokasiNamesChart: string[]
+  ranking:         { nama: string; lokasi: string; totalAudit: number; avgPct: number; dominanKat: string | null; exCount: number; sdCount: number; niCount: number }[]
+  skippedList:     { nama: string; lokasi: string; tanggal: string }[]
 }
 
 const KAT_COLOR = { EX: '#10C98F', SD: '#FACC15', NI: '#FF5C7A' }
@@ -101,10 +104,7 @@ function FilterSelect({ label, value, onChange, options }: {
                 className={`w-full text-left px-4 py-2 text-xs flex items-center gap-2 transition-colors ${
                   value === opt.value ? 'bg-brand-pale font-bold text-brand' : 'text-ink hover:bg-surface'
                 }`}>
-                {value === opt.value
-                  ? <span className="material-icons-round text-brand text-sm">check</span>
-                  : <span className="w-5" />
-                }
+                <span className={`material-icons-round text-brand text-sm flex-shrink-0 ${value === opt.value ? '' : 'opacity-0'}`}>check</span>
                 {opt.label}
               </button>
             ))}
@@ -369,8 +369,8 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <div className="ico-wrap ico-brand"><span className="material-icons-round">location_on</span></div>
                     <div>
-                      <div className="text-sm font-bold text-ink">Per Lokasi</div>
-                      <div className="text-[11px] text-ink-3">{periodLabel}</div>
+                      <div className="text-sm font-bold text-ink">Per Lokasi (Per Bulan)</div>
+                      <div className="text-[11px] text-ink-3">{periodLabel} · Avg Score %</div>
                     </div>
                   </div>
                   <div className="flex gap-1.5 no-export">
@@ -382,18 +382,26 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="p-4">
-                  {data.perLokasi.length === 0 ? (
+                  {!data.perLokasiTren || data.lokasiNamesChart.length === 0 ? (
                     <div className="text-center py-8 text-ink-3 text-sm">Belum ada data</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={data.perLokasi} barSize={28}>
+                      <LineChart data={data.perLokasiTren}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#E8E6FF" />
-                        <XAxis dataKey="lokasi" tick={{ fontSize: 11 }} />
+                        <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} unit="%" />
-                        <Tooltip formatter={(v: number) => [`${v}%`, 'Avg Score']} />
-                        <Bar dataKey="avg" fill="#7C6EF5" radius={[6, 6, 0, 0]}
-                          label={{ position: 'top', fontSize: 10, formatter: (v: number) => `${v}%` }} />
-                      </BarChart>
+                        <Tooltip formatter={(v: number) => [`${v}%`]} />
+                        <Legend iconType="circle" iconSize={8}
+                          formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>} />
+                        {data.lokasiNamesChart.map((nama, idx) => {
+                          const colors = ['#7C6EF5', '#10C98F', '#FF5C7A', '#FACC15', '#3B82F6']
+                          return (
+                            <Line key={nama} type="monotone" dataKey={nama}
+                              stroke={colors[idx % colors.length]}
+                              strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                          )
+                        })}
+                      </LineChart>
                     </ResponsiveContainer>
                   )}
                 </div>
@@ -410,12 +418,14 @@ export default function DashboardPage() {
                     <div className="text-[11px] text-ink-3">{periodLabel} · {trenMode === 'bulan' ? 'Per Bulan' : 'Per Semester'}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 no-export">
-                  <ExportPNGButton targetRef={refTren} filename={`6S-Tren_${periodLabel}`} />
-                  <button onClick={exportTrenCSV}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-success-light text-success hover:bg-success hover:text-white transition-all">
-                    <span className="material-icons-round text-sm">download</span> CSV
-                  </button>
+                <div className="flex flex-col gap-1.5 no-export items-end">
+                  <div className="flex gap-1.5">
+                    <ExportPNGButton targetRef={refTren} filename={`6S-Tren_${periodLabel}`} />
+                    <button onClick={exportTrenCSV}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-success-light text-success hover:bg-success hover:text-white transition-all">
+                      <span className="material-icons-round text-sm">download</span> CSV
+                    </button>
+                  </div>
                   <div className="flex gap-1 bg-surface rounded-xl p-1">
                     {(['bulan', 'semester'] as const).map(m => (
                       <button key={m} onClick={() => setTrenMode(m)}

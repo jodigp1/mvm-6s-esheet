@@ -117,6 +117,19 @@ export async function GET(req: NextRequest) {
     total:  lr.length,
   })).sort((a, b) => b.avg - a.avg)
 
+  // Per lokasi per bulan (untuk line chart)
+  const lokasiNamesChart = Object.values(lokasiMap).map(l => l.nama)
+  const perLokasiTren = bulanNames.map((bNama, idx) => {
+    const point: Record<string, number | string | null> = { bulan: bNama }
+    Object.values(lokasiMap).forEach(({ nama, rows: lr }) => {
+      const mRows = lr.filter(r => new Date(r.tanggal + 'T00:00:00').getMonth() === idx)
+      point[nama] = mRows.length > 0
+        ? Math.round(mRows.reduce((s: number, r: any) => s + (r.persen ?? 0), 0) / mRows.length)
+        : null
+    })
+    return point
+  })
+
   // ── 6. Ranking auditee ────────────────────────────────────────
   const auditeeMap: Record<string, {
     nama: string; lokasi: string; scores: number[]; kategori: string[]
@@ -170,6 +183,8 @@ export async function GET(req: NextRequest) {
       trenBulan,
       trenSemester,
       perLokasi,
+      perLokasiTren,
+      lokasiNamesChart,
       ranking,
       skippedList,
     }

@@ -41,6 +41,16 @@ export default function AuditPage() {
   // Modal list auditee
   const [showList, setShowList]         = useState(false)
 
+  // Toast
+  const [toast, setToast]               = useState('')
+  const toastRef                        = useRef<NodeJS.Timeout>()
+
+  function showToast(msg: string) {
+    setToast(msg)
+    clearTimeout(toastRef.current)
+    toastRef.current = setTimeout(() => setToast(''), 3000)
+  }
+
   // Load session & data
   useEffect(() => {
     const raw = sessionStorage.getItem('activeSession')
@@ -163,6 +173,13 @@ export default function AuditPage() {
 
   // ── Simpan & lanjut ke berikutnya ────────────────────────────
   async function handleNext() {
+    if (!current.skipped) {
+      const missing = checklist.filter(item => current.scores[item.id] === undefined)
+      if (missing.length > 0) {
+        showToast(`${missing.length} item belum dinilai: ${missing.map(i => i.item).join(', ')}`)
+        return
+      }
+    }
     await saveResult(auditee, current)
     if (currentIdx < members.length - 1) {
       setCurrentIdx(i => i + 1)
@@ -199,6 +216,16 @@ export default function AuditPage() {
 
   return (
     <div className="min-h-screen pb-32">
+
+      {/* ── TOAST ────────────────────────────────────────────── */}
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] max-w-xs w-full px-4 pointer-events-none">
+          <div className="bg-danger text-white text-xs font-bold rounded-2xl px-4 py-3 shadow-card-hover flex items-start gap-2 animate-[fadeUp_0.25s_ease]">
+            <span className="material-icons-round text-sm flex-shrink-0 mt-0.5">warning_amber</span>
+            <span>{toast}</span>
+          </div>
+        </div>
+      )}
 
       {/* ── FIXED HEADER ─────────────────────────────────────── */}
       <header className="bg-white border-b border-surface-border sticky top-0 z-50 shadow-card">

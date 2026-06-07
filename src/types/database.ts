@@ -13,6 +13,8 @@ export interface Database {
           jumlah_pic: number
           aktif: boolean
           created_at: string
+          icon?: string
+          color?: string
         }
         Insert: Omit<Database['public']['Tables']['lokasi']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['lokasi']['Insert']>
@@ -24,6 +26,7 @@ export interface Database {
           nama: string
           urutan: number
           aktif: boolean
+          is_auditor: boolean
         }
         Insert: Omit<Database['public']['Tables']['members']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['members']['Insert']>

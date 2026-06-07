@@ -92,13 +92,32 @@ export default function SettingsPage() {
 }
 
 // ── TAB: LOKASI ───────────────────────────────────────────────
+const LOKASI_ICONS = [
+  { icon: 'location_on',    label: 'Lokasi' },
+  { icon: 'business',       label: 'Kantor' },
+  { icon: 'warehouse',      label: 'Gudang' },
+  { icon: 'factory',        label: 'Pabrik' },
+  { icon: 'store',          label: 'Toko' },
+  { icon: 'science',        label: 'Lab' },
+  { icon: 'construction',   label: 'Proyek' },
+  { icon: 'home_work',      label: 'Workshop' },
+  { icon: 'local_shipping', label: 'Logistik' },
+  { icon: 'apartment',      label: 'Gedung' },
+]
+const LOKASI_COLORS = [
+  '#7C6EF5', '#10B981', '#3B82F6', '#F59E0B',
+  '#EF4444', '#EC4899', '#8B5CF6', '#06B6D4',
+]
+
 function LokasiTab() {
-  const [list, setList]       = useState<Lokasi[]>([])
-  const [nama, setNama]       = useState('')
-  const [kode, setKode]       = useState('')
-  const [pic, setPic]         = useState(1)
-  const [saving, setSaving]   = useState(false)
-  const [editId, setEditId]   = useState<string | null>(null)
+  const [list, setList]           = useState<Lokasi[]>([])
+  const [nama, setNama]           = useState('')
+  const [kode, setKode]           = useState('')
+  const [pic, setPic]             = useState(1)
+  const [lokasiIcon, setLokasiIcon]   = useState('location_on')
+  const [lokasiColor, setLokasiColor] = useState('#7C6EF5')
+  const [saving, setSaving]       = useState(false)
+  const [editId, setEditId]       = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Lokasi | null>(null)
 
   useEffect(() => { load() }, [])
@@ -115,21 +134,22 @@ function LokasiTab() {
       await fetch(`/api/settings/lokasi/${editId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama, kode: kode.toUpperCase(), jumlah_pic: pic }),
+        body: JSON.stringify({ nama, kode: kode.toUpperCase(), jumlah_pic: pic, icon: lokasiIcon, color: lokasiColor }),
       })
     } else {
       await fetch('/api/settings/lokasi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama, kode: kode.toUpperCase(), jumlah_pic: pic }),
+        body: JSON.stringify({ nama, kode: kode.toUpperCase(), jumlah_pic: pic, icon: lokasiIcon, color: lokasiColor }),
       })
     }
-    setNama(''); setKode(''); setPic(1); setEditId(null)
+    setNama(''); setKode(''); setPic(1); setLokasiIcon('location_on'); setLokasiColor('#7C6EF5'); setEditId(null)
     await load(); setSaving(false)
   }
 
   function handleEdit(l: Lokasi) {
     setEditId(l.id); setNama(l.nama); setKode(l.kode); setPic(l.jumlah_pic)
+    setLokasiIcon(l.icon ?? 'location_on'); setLokasiColor(l.color ?? '#7C6EF5')
   }
 
   async function handleToggle(l: Lokasi) {
@@ -178,9 +198,35 @@ function LokasiTab() {
                 ))}
               </div>
             </div>
+            <div>
+              <label className="text-[11px] font-bold text-ink-2 mb-1.5 block">Icon Lokasi</label>
+              <div className="flex flex-wrap gap-1.5">
+                {LOKASI_ICONS.map(o => (
+                  <button key={o.icon} type="button" onClick={() => setLokasiIcon(o.icon)}
+                    title={o.label}
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border-2 ${
+                      lokasiIcon === o.icon ? 'border-brand bg-white text-brand' : 'border-transparent bg-white/60 text-ink-2 hover:border-brand/40'
+                    }`}>
+                    <span className="material-icons-round text-base">{o.icon}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-ink-2 mb-1.5 block">Warna Aksen</label>
+              <div className="flex flex-wrap gap-2">
+                {LOKASI_COLORS.map(c => (
+                  <button key={c} type="button" onClick={() => setLokasiColor(c)}
+                    className={`w-7 h-7 rounded-full border-4 transition-all ${
+                      lokasiColor === c ? 'border-ink/30 scale-110' : 'border-transparent hover:scale-105'
+                    }`}
+                    style={{ background: c }} />
+                ))}
+              </div>
+            </div>
             <div className="flex gap-2 mt-1">
               {editId && (
-                <button onClick={() => { setEditId(null); setNama(''); setKode(''); setPic(1) }}
+                <button onClick={() => { setEditId(null); setNama(''); setKode(''); setPic(1); setLokasiIcon('location_on'); setLokasiColor('#7C6EF5') }}
                   className="btn-secondary flex-1 text-xs py-2">Batal</button>
               )}
               <button onClick={handleSave} disabled={saving || !nama || !kode}
@@ -194,8 +240,9 @@ function LokasiTab() {
           <div className="flex flex-col gap-2">
             {list.map(l => (
               <div key={l.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${l.aktif ? 'border-surface-border bg-white' : 'border-surface-border bg-surface opacity-60'}`}>
-                <div className="w-8 h-8 rounded-xl bg-brand-pale flex items-center justify-center flex-shrink-0">
-                  <span className="text-[10px] font-extrabold text-brand">{l.kode}</span>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${l.color ?? '#7C6EF5'}18` }}>
+                  <span className="material-icons-round text-base" style={{ color: l.color ?? '#7C6EF5' }}>{l.icon ?? 'location_on'}</span>
                 </div>
                 <div className="flex-1">
                   <div className="text-xs font-bold text-ink">{l.nama}</div>
@@ -271,12 +318,38 @@ function MemberTab() {
     setDeleteTarget(null)
   }
 
+  async function handleToggleAuditor(m: Member) {
+    const newVal = !(m.is_auditor !== false)
+    await fetch(`/api/settings/members/${m.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_auditor: newVal }),
+    })
+    setMembers(prev => prev.map(x => x.id === m.id ? { ...x, is_auditor: newVal } : x))
+  }
+
   async function saveOrder(newList: Member[]) {
     await fetch('/api/settings/members/reorder', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: newList.map((m, i) => ({ id: m.id, urutan: i + 1 })) }),
     })
+  }
+
+  function moveUp(i: number) {
+    if (i === 0) return
+    const newList = [...members]
+    ;[newList[i - 1], newList[i]] = [newList[i], newList[i - 1]]
+    setMembers(newList)
+    saveOrder(newList)
+  }
+
+  function moveDown(i: number) {
+    if (i === members.length - 1) return
+    const newList = [...members]
+    ;[newList[i], newList[i + 1]] = [newList[i + 1], newList[i]]
+    setMembers(newList)
+    saveOrder(newList)
   }
 
   return (
@@ -304,7 +377,7 @@ function MemberTab() {
           </div>
 
           {/* List member */}
-          <div className="flex flex-col gap-1.5 max-h-80 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-1.5 max-h-[440px] overflow-y-auto pr-1">
             {members.map((m, i) => (
               <div key={m.id}
                 draggable
@@ -320,9 +393,30 @@ function MemberTab() {
                   saveOrder(newList)
                 }}
                 className="flex items-center gap-2 p-2.5 bg-surface rounded-xl border border-surface-border hover:border-brand/30 transition-all cursor-grab active:cursor-grabbing">
-                <span className="material-icons-round text-ink-3 text-base">drag_indicator</span>
+                {/* Mobile: up/down buttons */}
+                <div className="flex flex-col gap-px sm:hidden">
+                  <button type="button" onClick={e => { e.stopPropagation(); moveUp(i) }} disabled={i === 0}
+                    className="w-4 h-4 flex items-center justify-center text-ink-3 disabled:opacity-20 hover:text-brand transition-colors">
+                    <span className="material-icons-round text-xs leading-none">arrow_drop_up</span>
+                  </button>
+                  <button type="button" onClick={e => { e.stopPropagation(); moveDown(i) }} disabled={i === members.length - 1}
+                    className="w-4 h-4 flex items-center justify-center text-ink-3 disabled:opacity-20 hover:text-brand transition-colors">
+                    <span className="material-icons-round text-xs leading-none">arrow_drop_down</span>
+                  </button>
+                </div>
+                {/* Desktop: drag handle */}
+                <span className="material-icons-round text-ink-3 text-base hidden sm:block">drag_indicator</span>
                 <span className="w-5 h-5 rounded-md bg-brand-pale flex items-center justify-center text-[10px] font-bold text-brand flex-shrink-0">{i + 1}</span>
                 <span className="flex-1 text-xs font-semibold text-ink">{m.nama}</span>
+                <button onClick={() => handleToggleAuditor(m)}
+                  title={m.is_auditor !== false ? 'Bisa jadi auditor' : 'Hanya auditee'}
+                  className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                    m.is_auditor !== false
+                      ? 'text-brand bg-brand-pale'
+                      : 'text-ink-3 hover:bg-surface'
+                  }`}>
+                  <span className="material-icons-round text-sm">{m.is_auditor !== false ? 'manage_accounts' : 'person'}</span>
+                </button>
                 <button onClick={() => setDeleteTarget(m)}
                   className="w-6 h-6 rounded-lg flex items-center justify-center text-danger hover:bg-danger-light transition-all">
                   <span className="material-icons-round text-sm">delete</span>

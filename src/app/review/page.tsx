@@ -54,6 +54,13 @@ export default function ReviewPage() {
   const bulan      = new Date(session.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
   const tanggalFmt = new Date(session.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
 
+  const lokasiKey  = lokasiNama.toLowerCase()
+  const heroGradient = lokasiKey.includes('cabin')
+    ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+    : lokasiKey.includes('otc')
+      ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'
+      : 'linear-gradient(135deg, #7C6EF5 0%, #5A4ED4 100%)'
+
   // ordered member list from results (preserves audit order)
   const allMembers = session.members
 
@@ -177,12 +184,12 @@ export default function ReviewPage() {
         <div className="rounded-3xl overflow-hidden shadow-card-hover fade-up border border-surface-border">
 
           {/* Hero header */}
-          <div style={{ background: 'linear-gradient(135deg, #10C98F 0%, #0db87e 50%, #0ea572 100%)' }}>
+          <div style={{ background: heroGradient }}>
             <div className="p-6 text-white relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-10 bg-white" />
               <div className="absolute -right-2 bottom-0 w-24 h-24 rounded-full opacity-10 bg-white" />
               <div className="relative">
-                <h1 className="text-xl font-extrabold mb-1">Hasil Audit 6S MVM ({bulan})</h1>
+                <h1 className="text-2xl font-extrabold mb-1">Hasil Audit 6S MVM ({bulan})</h1>
                 <p className="text-sm opacity-80 mb-4">{lokasiNama} — {tanggalFmt}</p>
                 <div className="flex flex-wrap gap-4 text-sm mb-5">
                   <div className="flex items-center gap-1.5 opacity-90">
@@ -195,7 +202,7 @@ export default function ReviewPage() {
                   </div>
                   <div className="flex items-center gap-1.5 opacity-90">
                     <span className="material-icons-round text-base">timer</span>
-                    Waktu: {waktuProses}
+                    Waktu (Durasi): {waktuProses}
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -231,16 +238,30 @@ export default function ReviewPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-surface">
-                  <th className="px-3 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
-                  <th className="px-3 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap min-w-[110px]">NAMA</th>
-                  {checklist.map(item => (
-                    <th key={item.id} className="px-2 py-2.5 text-center font-bold text-ink-2 min-w-[64px] max-w-[90px] uppercase text-[10px] leading-tight break-words">
-                      {item.item}
-                    </th>
-                  ))}
-                  <th className="px-3 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap">TOTAL</th>
-                  <th className="px-3 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap">%</th>
-                  <th className="px-3 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap">KATEGORI</th>
+                  <th className="px-2 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
+                  <th className="py-2.5 text-left font-bold text-ink-2" style={{ maxWidth: '90px', padding: '6px 8px' }}>NAMA</th>
+                  {checklist.map(item => {
+                    const words = item.item.split(' ')
+                    const n = item.item.length
+                    const fs = n <= 8 ? 9 : n <= 13 ? 8 : n <= 19 ? 7 : 6.5
+                    return (
+                      <th key={item.id} style={{ padding: '5px 3px', textAlign: 'center', verticalAlign: 'bottom' }}>
+                        <div style={{
+                          maxWidth: '58px', margin: '0 auto',
+                          fontSize: `${fs}px`, fontWeight: 700, textTransform: 'uppercase',
+                          lineHeight: 1.4, color: '#475569',
+                          wordBreak: 'break-word',
+                        }}>
+                          {words.map((word, i) => (
+                            <Fragment key={i}>{word}{i < words.length - 1 && <br />}</Fragment>
+                          ))}
+                        </div>
+                      </th>
+                    )
+                  })}
+                  <th className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">TOTAL</th>
+                  <th className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">%</th>
+                  <th className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">KAT</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,7 +275,7 @@ export default function ReviewPage() {
                     <Fragment key={name}>
                       <tr className={`border-t border-surface-border transition-colors ${isSkipped ? 'opacity-50' : 'hover:bg-surface/50'}`}>
                         <td className="px-3 py-2.5 text-ink-3 text-[11px]">{i + 1}</td>
-                        <td className={`px-3 py-2.5 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ minWidth: '80px' }}>{name}</td>
+                        <td className={`px-3 py-2.5 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ maxWidth: '90px', wordBreak: 'break-word' }}>{name}</td>
                         {checklist.map(item => (
                           <td key={item.id} className="px-2 py-2.5 text-center">
                             {isSkipped ? <span className="text-ink-3">—</span> : <ScoreBubble val={scores[item.id]} />}

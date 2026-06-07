@@ -85,7 +85,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
               { label: 'Kemarin', delta: -1 },
             ].map(({ label, delta }) => {
               const d = new Date(); d.setDate(d.getDate() + delta)
-              const iso = d.toISOString().split('T')[0]
+              const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
               const isActive = value === iso
               return (
                 <button key={label} onClick={() => { onChange(iso); setOpen(false) }}
@@ -248,10 +248,14 @@ export default function SetupSesiPage() {
   const [draftSesi,  setDraftSesi]  = useState<(AuditSession & { lokasi: { nama: string }; audit_results: { auditee_name: string }[] })[]>([])
 
   const [lokasiId, setLokasiId] = useState('')
-  const [tanggal,  setTanggal]  = useState(new Date().toISOString().split('T')[0])
+  const [tanggal,  setTanggal]  = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  })
   const [auditor1, setAuditor1] = useState('')
   const [auditor2, setAuditor2] = useState('')
   const [loading,  setLoading]  = useState(false)
+  const [ripple,   setRipple]   = useState<{ id: string; x: number; y: number; key: number } | null>(null)
 
   const lokasiSelected = lokasiList.find(l => l.id === lokasiId)
   const butuhDuaPic    = (lokasiSelected?.jumlah_pic ?? 0) >= 2
@@ -296,10 +300,26 @@ export default function SetupSesiPage() {
     router.push('/audit')
   }
 
+  async function handleCancelDraft(id: string) {
+    await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
+    setDraftSesi(prev => prev.filter(s => s.id !== id))
+  }
+
   function handleResume(sesi: AuditSession & { lokasi: { nama: string }; audit_results: { auditee_name: string }[] }) {
     supabase.from('members').select('*')
       .eq('lokasi_id', sesi.lokasi_id).eq('aktif', true).order('urutan')
       .then(({ data }) => {
+        // Preserve elapsed time if resuming the same session
+        let prevElapsedMs = 0
+        try {
+          const raw = sessionStorage.getItem('activeSession')
+          if (raw) {
+            const prev = JSON.parse(raw)
+            if (prev.sessionId === sesi.id && prev.startTime) {
+              prevElapsedMs = Date.now() - prev.startTime
+            }
+          }
+        } catch {}
         sessionStorage.setItem('activeSession', JSON.stringify({
           sessionId:  sesi.id,
           lokasiId:   sesi.lokasi_id,
@@ -308,14 +328,21 @@ export default function SetupSesiPage() {
           auditor1:   sesi.auditor1,
           auditor2:   sesi.auditor2,
           members:    (data ?? []).map(m => m.nama),
-          startTime:  Date.now(),
+          startTime:  Date.now() - prevElapsedMs,
         }))
         router.push('/audit')
       })
   }
 
-  const auditorOptions = memberList.map(m => m.nama)
+  const auditorOptions = memberList.filter(m => m.is_auditor !== false).map(m => m.nama)
   const canStart = lokasiId && tanggal && auditor1 && (!butuhDuaPic || auditor2)
+
+  function handleLokasiCardClick(e: React.MouseEvent<HTMLButtonElement>, id: string) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setRipple({ id, x: e.clientX - rect.left, y: e.clientY - rect.top, key: Date.now() })
+    setTimeout(() => setRipple(null), 600)
+    setLokasiId(prev => prev === id ? '' : id)
+  }
 
   // Step completion state for visual progress
   const step1Done = !!lokasiId
@@ -367,13 +394,18 @@ export default function SetupSesiPage() {
             </div>
             <div className="p-4 flex flex-col gap-2">
               {draftSesi.slice(0, 3).map((sesi: any) => (
-                <div key={sesi.id} className="flex items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-surface-border">
-                  <div>
+                <div key={sesi.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-border">
+                  <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold text-ink">{sesi.lokasi?.nama} — {new Date(sesi.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                     <div className="text-[11px] text-ink-3">PIC: {sesi.auditor1}{sesi.auditor2 ? ' & ' + sesi.auditor2 : ''} · {sesi.audit_results?.length ?? 0} sudah diisi</div>
                   </div>
                   <button onClick={() => handleResume(sesi)} className="btn-primary text-xs px-3 py-2 flex items-center gap-1 flex-shrink-0">
                     <span className="material-icons-round text-sm">play_arrow</span> Resume
+                  </button>
+                  <button onClick={() => handleCancelDraft(sesi.id)}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-danger hover:bg-danger-light transition-all flex-shrink-0"
+                    title="Batalkan sesi ini">
+                    <span className="material-icons-round text-sm">delete</span>
                   </button>
                 </div>
               ))}
@@ -400,34 +432,43 @@ export default function SetupSesiPage() {
               <div className="grid grid-cols-2 gap-3">
                 {lokasiList.map(lokasi => {
                   const acc    = getAccent(lokasi.nama)
+                  const cardIcon  = (lokasi.icon  && lokasi.icon  !== 'location_on') ? lokasi.icon  : acc.icon
+                  const cardColor = (lokasi.color && lokasi.color !== '#7C6EF5')     ? lokasi.color : acc.color
+                  const cardBg    = `${cardColor}18`
                   const active = lokasiId === lokasi.id
                   return (
                     <button key={lokasi.id} type="button"
-                      onClick={() => setLokasiId(active ? '' : lokasi.id)}
-                      className="relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all text-center"
+                      onClick={(e) => handleLokasiCardClick(e, lokasi.id)}
+                      className="relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all text-center overflow-hidden"
                       style={{
-                        borderColor:    active ? acc.color : '#E2E8F0',
-                        background:     active ? acc.selectedBg : '#FAFAFE',
-                        boxShadow:      active ? `0 0 0 3px ${acc.color}18` : 'none',
+                        borderColor:    active ? cardColor : '#E2E8F0',
+                        background:     active ? `${cardColor}22` : '#FAFAFE',
+                        boxShadow:      active ? `0 0 0 3px ${cardColor}18` : 'none',
                       }}>
+                      {/* Ripple */}
+                      {ripple?.id === lokasi.id && (
+                        <span key={ripple.key} className="absolute pointer-events-none rounded-full animate-ripple"
+                          style={{ left: ripple.x - 40, top: ripple.y - 40, width: 80, height: 80,
+                            background: active ? 'rgba(255,255,255,0.4)' : `${cardColor}30` }} />
+                      )}
                       {/* Icon circle */}
                       <div className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all"
-                        style={{ background: active ? acc.color : acc.bg }}>
+                        style={{ background: active ? cardColor : cardBg }}>
                         <span className="material-icons-round text-2xl"
-                          style={{ color: active ? '#fff' : acc.color }}>
-                          {acc.icon}
+                          style={{ color: active ? '#fff' : cardColor }}>
+                          {cardIcon}
                         </span>
                       </div>
                       <div>
                         <div className="text-sm font-extrabold text-ink">{lokasi.nama}</div>
                         <div className="text-[10px] mt-0.5 font-semibold"
-                          style={{ color: active ? acc.color : '#9CA3AF' }}>
+                          style={{ color: active ? cardColor : '#9CA3AF' }}>
                           {lokasi.jumlah_pic >= 2 ? '2 PIC Auditor' : '1 PIC Auditor'}
                         </div>
                       </div>
                       {active && (
                         <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center"
-                          style={{ background: acc.color }}>
+                          style={{ background: cardColor }}>
                           <span className="material-icons-round text-white text-xs">check</span>
                         </div>
                       )}
@@ -512,7 +553,10 @@ export default function SetupSesiPage() {
 
                 <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-surface border border-surface-border">
                   <span className="material-icons-round text-brand text-base">group</span>
-                  <span className="text-xs text-ink-2 font-semibold">{memberList.length} auditee terdaftar</span>
+                  <span className="text-xs text-ink-2 font-semibold">
+                    {memberList.length} auditee terdaftar
+                    {auditorOptions.length > 0 && <span className="text-ink-3"> · {auditorOptions.length} auditor tersedia</span>}
+                  </span>
                 </div>
               </div>
             )}
@@ -538,6 +582,10 @@ export default function SetupSesiPage() {
         </button>
 
       </main>
+
+      <footer className="text-center py-3 text-[10px] text-ink-3 border-t border-surface-border">
+        © 2026 MVM Dept. | MVM-6S-esheet v1
+      </footer>
     </div>
   )
 }

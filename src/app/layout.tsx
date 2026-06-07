@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata } from 'next'
 import './globals.css'
+import BackToTop from './components/BackToTop'
 
 export const metadata: Metadata = {
   title: '6S Audit MVM',
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body>{children}<BackToTop /></body>
     </html>
   )
 }

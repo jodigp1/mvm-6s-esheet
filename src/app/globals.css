@@ -110,6 +110,29 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(60px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@media (min-width: 640px) {
+  .animate-slide-up {
+    animation: fadeUp 0.25s ease both;
+  }
+}
+
+@keyframes rippleEffect {
+  0%   { transform: scale(0); opacity: 0.45; }
+  100% { transform: scale(5); opacity: 0; }
+}
+.animate-ripple {
+  animation: rippleEffect 0.55s ease-out forwards;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-thumb { background: #E8E6FF; border-radius: 4px; }
@@ -155,6 +178,18 @@
   .overflow-hidden,
   .overflow-y-auto,
   .overflow-auto { overflow: visible !important; }
+
+  /* Table headers: allow wrap */
+  table th {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  table td {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
 
   @page {
     margin: 12mm;

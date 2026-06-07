@@ -242,7 +242,12 @@ export default function HistoryPage() {
       return `<tr><td style="color:#9CA3AF">${i+1}</td><td style="font-weight:700">${r.auditee_name}</td>${cells}<td style="text-align:center;font-weight:700">${r.total_score ?? '—'}</td><td style="text-align:center;font-weight:700;color:#10C98F">${r.persen ?? 0}%</td><td style="text-align:center;font-weight:700;color:${kc}">${katLabel(r.kategori ?? null)}</td></tr>${commentRow}`
     }).join('')
 
-    const headCols = detailChecklist.map(c => `<th style="text-align:center;min-width:55px">${c.item.length > 9 ? c.item.substring(0,9)+'.' : c.item}</th>`).join('')
+    const headCols = detailChecklist.map(c => {
+      const n = c.item.length
+      const fs = n <= 8 ? 10 : n <= 13 ? 9 : n <= 19 ? 8 : 7
+      const text = c.item.split(' ').join('<br>')
+      return `<th style="text-align:center;padding:6px 3px;vertical-align:bottom"><div style="font-size:${fs}px;font-weight:700;text-transform:uppercase;line-height:1.45;max-width:62px;margin:0 auto">${text}</div></th>`
+    }).join('')
 
     const signHtml = `
       <div style="display:flex;gap:48px;padding:20px 0 12px;border-top:1px solid #E5E2FF;margin-top:8px">
@@ -271,6 +276,13 @@ export default function HistoryPage() {
         </div>
       </div>` : ''
 
+    const lokasiKey = lokasiNama.toLowerCase()
+    const headerGradient = lokasiKey.includes('cabin')
+      ? 'linear-gradient(135deg,#10B981 0%,#059669 100%)'
+      : lokasiKey.includes('otc')
+        ? 'linear-gradient(135deg,#3B82F6 0%,#1D4ED8 100%)'
+        : 'linear-gradient(135deg,#7C6EF5 0%,#5A4ED4 100%)'
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -281,7 +293,7 @@ export default function HistoryPage() {
   *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:20px;background:#fff;font-size:13px;color:#1a1a2e}
   @page{margin:12mm;size:A4 landscape}
-  .header{background:linear-gradient(135deg,#10C98F 0%,#0ea572 100%);border-radius:14px;padding:22px 28px;color:#fff;margin-bottom:24px}
+  .header{background:${headerGradient};border-radius:14px;padding:22px 28px;color:#fff;margin-bottom:24px}
   .header h1{font-size:20px;font-weight:800;margin:0 0 4px}
   .header p{font-size:12px;opacity:.85;margin:0 0 6px}
   .header hr{border:none;border-top:1px solid rgba(255,255,255,.35);margin:10px 0}
@@ -513,7 +525,7 @@ ${warnHtml}
       {detail && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-6"
           style={{ background: 'rgba(22,22,42,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="bg-white rounded-3xl w-full max-w-3xl shadow-card-hover flex flex-col max-h-[92vh]">
+          <div className="bg-white rounded-3xl w-full max-w-5xl shadow-card-hover flex flex-col max-h-[92vh] animate-slide-up">
 
             {/* Modal header */}
             <div className="p-4 border-b border-surface-border flex-shrink-0">
@@ -562,9 +574,16 @@ ${warnHtml}
 
                     return (
                       <>
-                        {/* Green hero */}
+                        {/* Dynamic hero */}
                         <div className="rounded-2xl overflow-hidden"
-                          style={{ background: 'linear-gradient(135deg, #10C98F 0%, #0db87e 50%, #0ea572 100%)' }}>
+                          style={{ background: (() => {
+                            const k = detail.lokasi.nama.toLowerCase()
+                            return k.includes('cabin')
+                              ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+                              : k.includes('otc')
+                                ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'
+                                : 'linear-gradient(135deg, #10C98F 0%, #0db87e 50%, #0ea572 100%)'
+                          })() }}>
                           <div className="p-5 text-white relative overflow-hidden">
                             <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full opacity-10 bg-white" />
                             <div className="relative">
@@ -602,16 +621,30 @@ ${warnHtml}
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="bg-surface">
-                                  <th className="px-2 py-2 text-left font-bold text-ink-2">#</th>
-                                  <th className="px-2 py-2 text-left font-bold text-ink-2 min-w-[90px]">NAMA</th>
-                                  {detailChecklist.map(item => (
-                                    <th key={item.id} className="px-1.5 py-2 text-center font-bold text-ink-2 text-[10px] min-w-[55px] max-w-[80px] uppercase leading-tight break-words">
-                                      {item.item}
-                                    </th>
-                                  ))}
-                                  <th className="px-2 py-2 text-center font-bold text-ink-2">TOTAL</th>
-                                  <th className="px-2 py-2 text-center font-bold text-ink-2">%</th>
-                                  <th className="px-2 py-2 text-center font-bold text-ink-2">KAT</th>
+                                  <th className="px-2 py-2 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
+                                  <th className="py-2 text-left font-bold text-ink-2" style={{ padding: '6px 6px', maxWidth: '80px' }}>NAMA</th>
+                                  {detailChecklist.map(item => {
+                                    const words = item.item.split(' ')
+                                    const n = item.item.length
+                                    const fs = n <= 8 ? 9 : n <= 13 ? 8 : n <= 19 ? 7 : 6.5
+                                    return (
+                                      <th key={item.id} style={{ padding: '4px 2px', textAlign: 'center', verticalAlign: 'bottom' }}>
+                                        <div style={{
+                                          maxWidth: '54px', margin: '0 auto',
+                                          fontSize: `${fs}px`, fontWeight: 700, textTransform: 'uppercase',
+                                          lineHeight: 1.4, color: '#475569',
+                                          wordBreak: 'break-word',
+                                        }}>
+                                          {words.map((word, i) => (
+                                            <Fragment key={i}>{word}{i < words.length - 1 && <br />}</Fragment>
+                                          ))}
+                                        </div>
+                                      </th>
+                                    )
+                                  })}
+                                  <th className="px-2 py-2 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">TOTAL</th>
+                                  <th className="px-2 py-2 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">%</th>
+                                  <th className="px-2 py-2 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">KAT</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -624,7 +657,7 @@ ${warnHtml}
                                     <Fragment key={r.id}>
                                       <tr className={`border-t border-surface-border ${isSkipped ? 'opacity-50' : ''}`}>
                                         <td className="px-2 py-2 text-ink-3">{i + 1}</td>
-                                        <td className={`px-2 py-2 whitespace-nowrap ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`}>{r.auditee_name}</td>
+                                        <td className={`px-2 py-2 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ maxWidth: '80px', wordBreak: 'break-word' }}>{r.auditee_name}</td>
                                         {detailChecklist.map(item => (
                                           <td key={item.id} className="px-1.5 py-2 text-center">
                                             {isSkipped
@@ -675,7 +708,7 @@ ${warnHtml}
 
                         {/* Sign approval — separate card */}
                         <div className="card">
-                          <div className={`p-5 grid gap-6 ${detail.auditor2 ? 'grid-cols-2' : 'grid-cols-1 max-w-xs'}`}>
+                          <div className={`p-5 grid gap-3 ${detail.auditor2 ? 'grid-cols-2' : 'grid-cols-1 max-w-xs'}`}>
                             <div>
                               <div className="text-[10px] font-bold text-ink-3 uppercase tracking-wider mb-3">PIC Auditor 6S</div>
                               <div className="text-3xl text-brand mb-1" style={{ fontFamily: "'Dancing Script', cursive" }}>
