@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
   const {
     session_id, lokasi_id, tanggal, auditee_name,
-    scores, remarks, total_score, max_score,
+    scores, remarks, non_bobot_answers = null, total_score, max_score,
     skipped = false, skip_reason = null,
   } = body
 
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     .upsert(
       {
         session_id, lokasi_id, tanggal, auditee_name,
-        scores, remarks, total_score, max_score,
+        scores, remarks, non_bobot_answers, total_score, max_score,
         persen, kategori, skipped, skip_reason,
       } as any,
       { onConflict: 'session_id,auditee_name' }
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { session_id, waktu_proses } = await req.json()
+  const { session_id, waktu_proses, checklist_snapshot = null } = await req.json()
   const sb = supabaseAdmin()
 
   const { data: results } = await sb
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
 
   const { error } = await sb
     .from('audit_sessions')
-    .update({ status: 'completed', waktu_proses, avg_score_pct: avg } as unknown as never)
+    .update({ status: 'completed', waktu_proses, avg_score_pct: avg, checklist_snapshot } as unknown as never)
     .eq('id', session_id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

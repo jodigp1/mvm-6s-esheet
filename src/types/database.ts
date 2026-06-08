@@ -2,6 +2,11 @@
 
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
 
+export interface CustomAnswer {
+  label:          string
+  wajib_komentar: boolean
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -27,6 +32,10 @@ export interface Database {
           urutan: number
           aktif: boolean
           is_auditor: boolean
+          sn_camera:   string | null
+          sn_ht:       string | null
+          ht_required: boolean
+          cam_required: boolean
         }
         Insert: Omit<Database['public']['Tables']['members']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['members']['Insert']>
@@ -51,6 +60,8 @@ export interface Database {
           deskripsi: string | null
           bobot: number
           aktif: boolean
+          tipe: 'bobot' | 'non_bobot'
+          jawaban_custom: CustomAnswer[] | null
         }
         Insert: Omit<Database['public']['Tables']['checklist_items']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['checklist_items']['Insert']>
@@ -65,6 +76,7 @@ export interface Database {
           status: 'draft' | 'completed'
           waktu_proses: string | null
           avg_score_pct: number | null
+          checklist_snapshot: Json | null
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['audit_sessions']['Row'], 'id' | 'created_at'>
@@ -79,6 +91,7 @@ export interface Database {
           auditee_name: string
           scores: Json | null
           remarks: Json | null
+          non_bobot_answers: Json | null
           total_score: number | null
           max_score: number | null
           persen: number | null
@@ -89,6 +102,14 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['audit_results']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['audit_results']['Insert']>
+      }
+      app_config: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: Database['public']['Tables']['app_config']['Row']
+        Update: Partial<Database['public']['Tables']['app_config']['Row']>
       }
     }
   }

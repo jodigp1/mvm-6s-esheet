@@ -3,7 +3,7 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { ActiveSession, AuditResult, ChecklistItem, ScoreConfig } from '@/types/database'
+import type { ActiveSession, AuditResult, ChecklistItem, ScoreConfig, CustomAnswer } from '@/types/database'
 import { KATEGORI_LABEL } from '@/types/database'
 
 export default function ReviewPage() {
@@ -44,6 +44,8 @@ export default function ReviewPage() {
 
   if (!session) return null
 
+  const bobotChecklist    = checklist.filter(i => i.tipe !== 'non_bobot')
+  const nonBobotChecklist = checklist.filter(i => i.tipe === 'non_bobot')
   const nonSkipped = results.filter(r => !r.skipped)
   const skipped    = results.filter(r => r.skipped)
   const avgPct     = nonSkipped.length > 0
@@ -70,7 +72,7 @@ export default function ReviewPage() {
     await fetch('/api/audit', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: session.sessionId, waktu_proses: waktuProses }),
+      body: JSON.stringify({ session_id: session.sessionId, waktu_proses: waktuProses, checklist_snapshot: checklist }),
     })
     sessionStorage.removeItem('activeSession')
     sessionStorage.removeItem('auditTimer')
@@ -78,26 +80,35 @@ export default function ReviewPage() {
     setSubmitting(false)
   }
 
+  /* Export functions disabled — gunakan History > klik sesi untuk export
   async function exportExcel() {
     if (!session) return
     const XLSX = await import('xlsx')
+    const bobotItems    = checklist.filter(i => i.tipe !== 'non_bobot')
+    const nonBobotItems = checklist.filter(i => i.tipe === 'non_bobot')
     const rows = allMembers.map((name, i) => {
       const r = results.find(res => res.auditee_name === name)
       const isSkipped = r?.skipped ?? false
-      const scores = (r?.scores as Record<string, number>) ?? {}
+      const scores          = (r?.scores as Record<string, number>) ?? {}
+      const nonBobotAnswers = (r?.non_bobot_answers as Record<string, string>) ?? {}
+      const remarks         = (r?.remarks as Record<string, string>) ?? {}
       const row: Record<string, string | number> = {
         '#': i + 1,
         'Nama Auditee': name,
         'Lokasi': lokasiNama,
         'Tanggal': session.tanggal,
       }
-      checklist.forEach(item => {
+      bobotItems.forEach(item => {
         row[`${item.nomor}. ${item.item}`] = isSkipped ? '—' : (scores[item.id] ?? '—')
       })
       row['Total Score'] = isSkipped ? '—' : (r?.total_score ?? 0)
       row['Max Score']   = isSkipped ? '—' : (r?.max_score ?? 0)
       row['Persen (%)']  = isSkipped ? '—' : (r?.persen ?? 0)
       row['Kategori']    = isSkipped ? 'Dilewati' : (r?.kategori ? KATEGORI_LABEL[r.kategori] : '—')
+      nonBobotItems.forEach(item => {
+        row[`[NB] ${item.item}`]         = isSkipped ? '—' : (nonBobotAnswers[item.id] ?? '—')
+        row[`[NB] ${item.item} (Catatan)`] = remarks[item.id] ?? ''
+      })
       return row
     })
     const wb = XLSX.utils.book_new()
@@ -108,6 +119,7 @@ export default function ReviewPage() {
   function exportPDF() {
     window.print()
   }
+  */
 
   function ScoreBubble({ val }: { val: number | undefined }) {
     if (val === undefined || val < 0) return <span className="text-ink-3">—</span>
@@ -167,6 +179,7 @@ export default function ReviewPage() {
             <div className="text-[15px] font-extrabold text-ink">Review & Export</div>
             <div className="text-[11px] text-ink-3">{lokasiNama} · {tanggalFmt} · PIC: {session.auditor1}</div>
           </div>
+          {/* Export buttons disabled — gunakan History > klik sesi untuk export
           <button onClick={exportExcel}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-success-light text-success hover:bg-success hover:text-white transition-all">
             <span className="material-icons-round text-sm">table_chart</span> Excel
@@ -175,6 +188,7 @@ export default function ReviewPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-danger-light text-danger hover:bg-danger hover:text-white transition-all">
             <span className="material-icons-round text-sm">picture_as_pdf</span> PDF
           </button>
+          */}
         </div>
       </header>
 
@@ -198,7 +212,7 @@ export default function ReviewPage() {
                   </div>
                   <div className="flex items-center gap-1.5 opacity-90">
                     <span className="material-icons-round text-base">checklist</span>
-                    {checklist.length} Item Checklist
+                    {bobotChecklist.length} Item Bobot{nonBobotChecklist.length > 0 ? ` · ${nonBobotChecklist.length} Non-Bobot` : ''}
                   </div>
                   <div className="flex items-center gap-1.5 opacity-90">
                     <span className="material-icons-round text-base">timer</span>
@@ -240,7 +254,7 @@ export default function ReviewPage() {
                 <tr className="bg-surface">
                   <th className="px-2 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
                   <th className="py-2.5 text-left font-bold text-ink-2" style={{ maxWidth: '90px', padding: '6px 8px' }}>NAMA</th>
-                  {checklist.map(item => {
+                  {bobotChecklist.map(item => {
                     const words = item.item.split(' ')
                     const n = item.item.length
                     const fs = n <= 8 ? 9 : n <= 13 ? 8 : n <= 19 ? 7 : 6.5
@@ -259,6 +273,26 @@ export default function ReviewPage() {
                       </th>
                     )
                   })}
+                  {nonBobotChecklist.map(item => {
+                    const words = item.item.split(' ')
+                    const n = item.item.length
+                    const fs = n <= 8 ? 9 : n <= 13 ? 8 : n <= 19 ? 7 : 6.5
+                    return (
+                      <th key={item.id} style={{ padding: '5px 3px', textAlign: 'center', verticalAlign: 'bottom', background: '#f0fdf4' }}>
+                        <div style={{
+                          maxWidth: '58px', margin: '0 auto',
+                          fontSize: `${fs}px`, fontWeight: 700, textTransform: 'uppercase',
+                          lineHeight: 1.4, color: '#15803d',
+                          wordBreak: 'break-word',
+                        }}>
+                          {words.map((word, i) => (
+                            <Fragment key={i}>{word}{i < words.length - 1 && <br />}</Fragment>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: '7px', color: '#86efac', fontWeight: 700, marginTop: '2px' }}>NB</div>
+                      </th>
+                    )
+                  })}
                   <th className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">TOTAL</th>
                   <th className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">%</th>
                   <th className="px-2 py-2.5 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">KAT</th>
@@ -267,18 +301,28 @@ export default function ReviewPage() {
               <tbody>
                 {allMembers.map((name, i) => {
                   const r = results.find(res => res.auditee_name === name)
-                  const isSkipped = r?.skipped ?? !r
-                  const scores  = (r?.scores  as Record<string, number>) ?? {}
-                  const remarks = (r?.remarks as Record<string, string>)  ?? {}
-                  const commentItems = checklist.filter(item => remarks[item.id]?.trim())
+                  const isSkipped       = r?.skipped ?? !r
+                  const scores          = (r?.scores as Record<string, number>) ?? {}
+                  const remarks         = (r?.remarks as Record<string, string>) ?? {}
+                  const nonBobotAnswers = (r?.non_bobot_answers as Record<string, string>) ?? {}
+                  const allCommentItems = [...bobotChecklist, ...nonBobotChecklist].filter(item => remarks[item.id]?.trim())
+                  const totalCols      = bobotChecklist.length + nonBobotChecklist.length + 4
                   return (
                     <Fragment key={name}>
                       <tr className={`border-t border-surface-border transition-colors ${isSkipped ? 'opacity-50' : 'hover:bg-surface/50'}`}>
                         <td className="px-3 py-2.5 text-ink-3 text-[11px]">{i + 1}</td>
                         <td className={`px-3 py-2.5 ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`} style={{ maxWidth: '90px', wordBreak: 'break-word' }}>{name}</td>
-                        {checklist.map(item => (
+                        {bobotChecklist.map(item => (
                           <td key={item.id} className="px-2 py-2.5 text-center">
                             {isSkipped ? <span className="text-ink-3">—</span> : <ScoreBubble val={scores[item.id]} />}
+                          </td>
+                        ))}
+                        {nonBobotChecklist.map(item => (
+                          <td key={item.id} className="px-2 py-2 text-center" style={{ background: '#f0fdf4' }}>
+                            {!isSkipped && nonBobotAnswers[item.id]
+                              ? <div className="text-[11px] font-bold text-emerald-700 leading-tight">{nonBobotAnswers[item.id]}</div>
+                              : <span className="text-ink-3">—</span>
+                            }
                           </td>
                         ))}
                         <td className="px-3 py-2.5 text-center font-bold text-ink">
@@ -294,14 +338,15 @@ export default function ReviewPage() {
                           }
                         </td>
                       </tr>
-                      {commentItems.length > 0 && (
+                      {/* Catatan — bobot + NB digabung */}
+                      {!isSkipped && allCommentItems.length > 0 && (
                         <tr key={`${name}-remarks`} className="bg-warning/5 border-t border-warning/20">
                           <td />
-                          <td colSpan={checklist.length + 4} className="px-3 py-2">
+                          <td colSpan={totalCols} className="px-3 py-2">
                             <div className="flex items-start gap-1.5 flex-wrap">
                               <span className="material-icons-round text-warning text-sm mt-0.5 flex-shrink-0">chat_bubble_outline</span>
                               <div className="flex flex-wrap gap-2">
-                                {commentItems.map(item => (
+                                {allCommentItems.map(item => (
                                   <span key={item.id} className="text-[10px] text-ink-2">
                                     <span className="font-bold text-warning">{item.item}:</span>{' '}
                                     <span className="italic">{remarks[item.id]}</span>

@@ -150,14 +150,27 @@ export default function HistoryPage() {
     setDetailLoading(true)
     setDetailResults([])
     setDetailChecklist([])
-    const [{ data: r }, { data: cl }, { data: sc }] = await Promise.all([
-      supabase.from('audit_results').select('*').eq('session_id', s.id).order('created_at'),
-      supabase.from('checklist_items').select('*').eq('lokasi_id', s.lokasi_id).eq('aktif', true).order('nomor'),
-      supabase.from('score_config').select('*').order('nilai'),
-    ])
-    if (r)  setDetailResults(r)
-    if (cl) setDetailChecklist(cl)
-    if (sc) setDetailScoreConfig(sc)
+
+    if (s.checklist_snapshot) {
+      // Use saved snapshot — immune to checklist edits
+      const [{ data: r }, { data: sc }] = await Promise.all([
+        supabase.from('audit_results').select('*').eq('session_id', s.id).order('created_at'),
+        supabase.from('score_config').select('*').order('nilai'),
+      ])
+      if (r)  setDetailResults(r)
+      if (sc) setDetailScoreConfig(sc)
+      setDetailChecklist(s.checklist_snapshot as unknown as ChecklistItem[])
+    } else {
+      // Legacy sessions without snapshot — fall back to current checklist
+      const [{ data: r }, { data: cl }, { data: sc }] = await Promise.all([
+        supabase.from('audit_results').select('*').eq('session_id', s.id).order('created_at'),
+        supabase.from('checklist_items').select('*').eq('lokasi_id', s.lokasi_id).eq('aktif', true).order('nomor'),
+        supabase.from('score_config').select('*').order('nilai'),
+      ])
+      if (r)  setDetailResults(r)
+      if (cl) setDetailChecklist(cl)
+      if (sc) setDetailScoreConfig(sc)
+    }
     setDetailLoading(false)
   }
 
@@ -173,19 +186,27 @@ export default function HistoryPage() {
   async function exportSessionExcel(s: SessionWithLokasi) {
     if (!detailResults.length || !detailChecklist.length) return
     const XLSX = await import('xlsx')
-    const lokasiNama = s.lokasi.nama
+    const lokasiNama  = s.lokasi.nama
+    const bobotItems    = detailChecklist.filter(i => i.tipe !== 'non_bobot')
+    const nonBobotItems = detailChecklist.filter(i => i.tipe === 'non_bobot')
     const rows = detailResults.map((r, i) => {
-      const isSkipped = r.skipped
-      const scores = (r.scores as Record<string, number>) ?? {}
+      const isSkipped       = r.skipped
+      const scores          = (r.scores          as Record<string, number>) ?? {}
+      const nonBobotAnswers = (r.non_bobot_answers as Record<string, string>) ?? {}
+      const remarks         = (r.remarks          as Record<string, string>) ?? {}
       const row: Record<string, string | number> = {
         '#': i + 1, 'Nama Auditee': r.auditee_name, 'Lokasi': lokasiNama, 'Tanggal': s.tanggal,
       }
-      detailChecklist.forEach(item => {
+      bobotItems.forEach(item => {
         row[`${item.nomor}. ${item.item}`] = isSkipped ? '—' : (scores[item.id] ?? '—')
       })
       row['Total Score'] = isSkipped ? '—' : (r.total_score ?? 0)
       row['Persen (%)']  = isSkipped ? '—' : (r.persen ?? 0)
       row['Kategori']    = isSkipped ? 'Dilewati' : (r.kategori ? KATEGORI_LABEL[r.kategori] : '—')
+      nonBobotItems.forEach(item => {
+        row[`[NB] ${item.item}`]           = isSkipped ? '—' : (nonBobotAnswers[item.id] ?? '—')
+        row[`[NB] ${item.item} (Catatan)`] = remarks[item.id] ?? ''
+      })
       return row
     })
     const wb = XLSX.utils.book_new()
@@ -213,11 +234,17 @@ export default function HistoryPage() {
     const katLabel = (k: string | null) => k === 'EX' ? 'Excellent' : k === 'SD' ? 'Standard' : k === 'NI' ? 'Need Improvement' : '—'
     const katColor = (k: string | null) => k === 'EX' ? '#10A070' : k === 'SD' ? '#B08000' : '#DC4444'
 
+    const pdfBobotItems    = detailChecklist.filter(i => i.tipe !== 'non_bobot')
+    const pdfNonBobotItems = detailChecklist.filter(i => i.tipe === 'non_bobot')
+    const totalPdfCols     = pdfBobotItems.length + pdfNonBobotItems.length + 4
+
     const tableRows = detailResults.map((r, i) => {
-      const isSkipped = r.skipped
-      const scores  = (r.scores  as Record<string, number>) ?? {}
-      const remarks = (r.remarks as Record<string, string>)  ?? {}
-      const cells = detailChecklist.map(item => {
+      const isSkipped       = r.skipped
+      const scores          = (r.scores           as Record<string, number>) ?? {}
+      const remarks         = (r.remarks          as Record<string, string>)  ?? {}
+      const nonBobotAnswers = (r.non_bobot_answers as Record<string, string>) ?? {}
+
+      const bobotCells = pdfBobotItems.map(item => {
         if (isSkipped) return `<td style="text-align:center;color:#9CA3AF">&mdash;</td>`
         const v = scores[item.id]
         if (v === undefined) return `<td style="text-align:center;color:#9CA3AF">—</td>`
@@ -225,29 +252,46 @@ export default function HistoryPage() {
         return `<td style="text-align:center"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${c}22;color:${c};font-weight:800;font-size:11px">${v}</span></td>`
       }).join('')
 
-      const commentItems = detailChecklist.filter(item => remarks[item.id]?.trim())
-      const commentRow = commentItems.length > 0
-        ? `<tr style="background:#FFFBEB"><td></td><td colspan="${detailChecklist.length + 4}" style="padding:5px 8px 7px">
+      const nbCells = pdfNonBobotItems.map(item => {
+        if (isSkipped) return `<td style="text-align:center;color:#9CA3AF">&mdash;</td>`
+        const ans = nonBobotAnswers[item.id]
+        return ans
+          ? `<td style="text-align:center;font-size:10px;font-weight:700;color:#15803d">${ans}</td>`
+          : `<td style="text-align:center;color:#9CA3AF">—</td>`
+      }).join('')
+
+      const allCommentItems = [...pdfBobotItems, ...pdfNonBobotItems].filter(item => remarks[item.id]?.trim())
+      const commentRow = !isSkipped && allCommentItems.length > 0
+        ? `<tr style="background:#FFFBEB"><td></td><td colspan="${totalPdfCols}" style="padding:5px 8px 7px">
             <span style="font-size:10px;color:#92400E">💬 </span>
-            ${commentItems.map(item =>
+            ${allCommentItems.map(item =>
               `<span style="font-size:10px;color:#374151;margin-right:12px"><strong style="color:#B45309">${item.item}:</strong> <em>${remarks[item.id]}</em></span>`
             ).join('')}
           </td></tr>`
         : ''
 
       if (isSkipped) {
-        return `<tr style="opacity:0.5"><td style="color:#9CA3AF">${i+1}</td><td style="font-style:italic;color:#9CA3AF">${r.auditee_name}</td>${detailChecklist.map(() => '<td style="text-align:center;color:#9CA3AF">&mdash;</td>').join('')}<td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF;font-style:italic">Dilewati</td></tr>`
+        const emptyCells = Array(pdfBobotItems.length + pdfNonBobotItems.length).fill('<td style="text-align:center;color:#9CA3AF">&mdash;</td>').join('')
+        return `<tr style="opacity:0.5"><td style="color:#9CA3AF">${i+1}</td><td style="font-style:italic;color:#9CA3AF">${r.auditee_name}</td>${emptyCells}<td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF">—</td><td style="text-align:center;color:#9CA3AF;font-style:italic">Dilewati</td></tr>`
       }
       const kc = katColor(r.kategori ?? null)
-      return `<tr><td style="color:#9CA3AF">${i+1}</td><td style="font-weight:700">${r.auditee_name}</td>${cells}<td style="text-align:center;font-weight:700">${r.total_score ?? '—'}</td><td style="text-align:center;font-weight:700;color:#10C98F">${r.persen ?? 0}%</td><td style="text-align:center;font-weight:700;color:${kc}">${katLabel(r.kategori ?? null)}</td></tr>${commentRow}`
+      return `<tr><td style="color:#9CA3AF">${i+1}</td><td style="font-weight:700">${r.auditee_name}</td>${bobotCells}${nbCells}<td style="text-align:center;font-weight:700">${r.total_score ?? '—'}</td><td style="text-align:center;font-weight:700;color:#10C98F">${r.persen ?? 0}%</td><td style="text-align:center;font-weight:700;color:${kc}">${katLabel(r.kategori ?? null)}</td></tr>${commentRow}`
     }).join('')
 
-    const headCols = detailChecklist.map(c => {
-      const n = c.item.length
-      const fs = n <= 8 ? 10 : n <= 13 ? 9 : n <= 19 ? 8 : 7
-      const text = c.item.split(' ').join('<br>')
-      return `<th style="text-align:center;padding:6px 3px;vertical-align:bottom"><div style="font-size:${fs}px;font-weight:700;text-transform:uppercase;line-height:1.45;max-width:62px;margin:0 auto">${text}</div></th>`
-    }).join('')
+    const headCols = [
+      ...pdfBobotItems.map(c => {
+        const n = c.item.length
+        const fs = n <= 8 ? 10 : n <= 13 ? 9 : n <= 19 ? 8 : 7
+        const text = c.item.split(' ').join('<br>')
+        return `<th style="text-align:center;padding:6px 3px;vertical-align:bottom"><div style="font-size:${fs}px;font-weight:700;text-transform:uppercase;line-height:1.45;max-width:62px;margin:0 auto">${text}</div></th>`
+      }),
+      ...pdfNonBobotItems.map(c => {
+        const n = c.item.length
+        const fs = n <= 8 ? 10 : n <= 13 ? 9 : n <= 19 ? 8 : 7
+        const text = c.item.split(' ').join('<br>')
+        return `<th style="text-align:center;padding:6px 3px;vertical-align:bottom;color:#15803d"><div style="font-size:${fs}px;font-weight:700;text-transform:uppercase;line-height:1.45;max-width:62px;margin:0 auto">${text}</div><div style="font-size:7px;color:#86efac;font-weight:700;margin-top:2px">NB</div></th>`
+      }),
+    ].join('')
 
     const signHtml = `
       <div style="display:flex;gap:48px;padding:20px 0 12px;border-top:1px solid #E5E2FF;margin-top:8px">
@@ -291,8 +335,8 @@ export default function HistoryPage() {
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:20px;background:#fff;font-size:13px;color:#1a1a2e;width:277mm;min-width:277mm}
-  @page{size:landscape;margin:12mm}
+  body{font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:8px;background:#fff;font-size:13px;color:#1a1a2e;width:297mm;min-width:297mm}
+  @page{size:landscape;margin:0}
   .header{background:${headerGradient};border-radius:14px;padding:22px 28px;color:#fff;margin-bottom:24px}
   .header h1{font-size:20px;font-weight:800;margin:0 0 4px}
   .header p{font-size:12px;opacity:.85;margin:0 0 6px}
@@ -525,7 +569,7 @@ ${warnHtml}
       {detail && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-6"
           style={{ background: 'rgba(22,22,42,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="bg-white rounded-3xl w-full max-w-5xl shadow-card-hover flex flex-col max-h-[92vh] animate-slide-up">
+          <div className="bg-white rounded-3xl w-full max-w-[96vw] xl:max-w-7xl shadow-card-hover flex flex-col max-h-[92vh] animate-slide-up">
 
             {/* Modal header */}
             <div className="p-4 border-b border-surface-border flex-shrink-0">
@@ -612,6 +656,10 @@ ${warnHtml}
                         </div>
 
                         {/* Score table */}
+                        {(() => {
+                          const bobotItems    = detailChecklist.filter(i => i.tipe !== 'non_bobot')
+                          const nonBobotItems = detailChecklist.filter(i => i.tipe === 'non_bobot')
+                          return (
                         <div className="card">
                           <div className="card-head">
                             <div className="text-xs font-bold text-ink">Rekap audit penilaian 6S di {detail.lokasi.nama} ({bulan}) | Auditor: {detail.auditor1}</div>
@@ -623,7 +671,7 @@ ${warnHtml}
                                 <tr className="bg-surface">
                                   <th className="px-2 py-2 text-left font-bold text-ink-2 whitespace-nowrap">#</th>
                                   <th className="px-2 py-2 text-left font-bold text-ink-2 whitespace-nowrap">NAMA</th>
-                                  {detailChecklist.map(item => {
+                                  {bobotItems.map(item => {
                                     const words = item.item.split(' ')
                                     const n = item.item.length
                                     const fs = n <= 8 ? 9 : n <= 13 ? 8 : n <= 19 ? 7 : 6.5
@@ -642,6 +690,26 @@ ${warnHtml}
                                       </th>
                                     )
                                   })}
+                                  {nonBobotItems.map(item => {
+                                    const words = item.item.split(' ')
+                                    const n = item.item.length
+                                    const fs = n <= 8 ? 9 : n <= 13 ? 8 : n <= 19 ? 7 : 6.5
+                                    return (
+                                      <th key={item.id} style={{ padding: '4px 2px', textAlign: 'center', verticalAlign: 'bottom', background: '#f0fdf4' }}>
+                                        <div style={{
+                                          maxWidth: '54px', margin: '0 auto',
+                                          fontSize: `${fs}px`, fontWeight: 700, textTransform: 'uppercase',
+                                          lineHeight: 1.4, color: '#15803d',
+                                          wordBreak: 'break-word',
+                                        }}>
+                                          {words.map((word, i) => (
+                                            <Fragment key={i}>{word}{i < words.length - 1 && <br />}</Fragment>
+                                          ))}
+                                        </div>
+                                        <div style={{ fontSize: '7px', color: '#86efac', fontWeight: 700, marginTop: '2px' }}>NB</div>
+                                      </th>
+                                    )
+                                  })}
                                   <th className="px-2 py-2 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">TOTAL</th>
                                   <th className="px-2 py-2 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">%</th>
                                   <th className="px-2 py-2 text-center font-bold text-ink-2 whitespace-nowrap text-[10px]">KAT</th>
@@ -649,20 +717,30 @@ ${warnHtml}
                               </thead>
                               <tbody>
                                 {detailResults.map((r, i) => {
-                                  const isSkipped = r.skipped
-                                  const scores  = (r.scores  as Record<string, number>) ?? {}
-                                  const remarks = (r.remarks as Record<string, string>)  ?? {}
-                                  const commentItems = detailChecklist.filter(item => remarks[item.id]?.trim())
+                                  const isSkipped       = r.skipped
+                                  const scores          = (r.scores  as Record<string, number>) ?? {}
+                                  const remarks         = (r.remarks as Record<string, string>)  ?? {}
+                                  const nonBobotAnswers = (r.non_bobot_answers as Record<string, string>) ?? {}
+                                  const allCommentItems = [...bobotItems, ...nonBobotItems].filter(item => remarks[item.id]?.trim())
+                                  const totalCols       = bobotItems.length + nonBobotItems.length + 4
                                   return (
                                     <Fragment key={r.id}>
                                       <tr className={`border-t border-surface-border ${isSkipped ? 'opacity-50' : ''}`}>
                                         <td className="px-2 py-2 text-ink-3">{i + 1}</td>
                                         <td className={`px-2 py-2 whitespace-nowrap ${isSkipped ? 'text-ink-3' : 'font-bold text-ink'}`}>{r.auditee_name}</td>
-                                        {detailChecklist.map(item => (
+                                        {bobotItems.map(item => (
                                           <td key={item.id} className="px-1.5 py-2 text-center">
                                             {isSkipped
                                               ? <span className="text-ink-3">—</span>
                                               : <ScoreBubble val={scores[item.id]} config={detailScoreConfig} />
+                                            }
+                                          </td>
+                                        ))}
+                                        {nonBobotItems.map(item => (
+                                          <td key={item.id} className="px-1.5 py-2 text-center">
+                                            {!isSkipped && nonBobotAnswers[item.id]
+                                              ? <div className="text-[11px] font-bold text-emerald-700 leading-tight">{nonBobotAnswers[item.id]}</div>
+                                              : <span className="text-ink-3">—</span>
                                             }
                                           </td>
                                         ))}
@@ -679,14 +757,14 @@ ${warnHtml}
                                           }
                                         </td>
                                       </tr>
-                                      {commentItems.length > 0 && (
+                                      {!isSkipped && allCommentItems.length > 0 && (
                                         <tr key={`${r.id}-remarks`} className="bg-warning/5 border-t border-warning/20">
                                           <td />
-                                          <td colSpan={detailChecklist.length + 4} className="px-2 py-1.5">
+                                          <td colSpan={totalCols} className="px-2 py-1.5">
                                             <div className="flex items-start gap-1.5 flex-wrap">
                                               <span className="material-icons-round text-warning text-sm mt-0.5 flex-shrink-0">chat_bubble_outline</span>
                                               <div className="flex flex-wrap gap-2">
-                                                {commentItems.map(item => (
+                                                {allCommentItems.map(item => (
                                                   <span key={item.id} className="text-[10px] text-ink-2">
                                                     <span className="font-bold text-warning">{item.item}:</span>{' '}
                                                     <span className="italic">{remarks[item.id]}</span>
@@ -705,6 +783,8 @@ ${warnHtml}
                           </div>
 
                         </div>
+                          )
+                        })()}
 
                         {/* Sign approval — separate card */}
                         <div className="card">

@@ -4,27 +4,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { ChecklistItem, ScoreConfig, ActiveSession } from '@/types/database'
+import type { ChecklistItem, ScoreConfig, ActiveSession, Member, CustomAnswer } from '@/types/database'
 import { SKIP_REASONS, type SkipReason } from '@/types/database'
 
 // ── Types lokal ────────────────────────────────────────────────
 interface AuditeeResult {
-  scores:      Record<string, number>   // { item_id: nilai }
-  remarks:     Record<string, string>   // { item_id: catatan }
-  skipped:     boolean
-  skip_reason: string | null
-  saved:       boolean
+  scores:          Record<string, number>   // { item_id: nilai } — bobot items only
+  remarks:         Record<string, string>   // { item_id: catatan }
+  nonBobotAnswers: Record<string, string>   // { item_id: chosen_label } — non_bobot items
+  skipped:         boolean
+  skip_reason:     string | null
+  saved:           boolean
 }
 
 export default function AuditPage() {
   const router = useRouter()
 
-  // Session dari sessionStorage
   const [session, setSession]           = useState<ActiveSession | null>(null)
   const [checklist, setChecklist]       = useState<ChecklistItem[]>([])
   const [scoreConfig, setScoreConfig]   = useState<ScoreConfig[]>([])
+  const [memberMap, setMemberMap]       = useState<Record<string, Member>>({})
 
-  // State audit
   const [currentIdx, setCurrentIdx]     = useState(0)
   const [results, setResults]           = useState<Record<string, AuditeeResult>>({})
   const [saving, setSaving]             = useState(false)
@@ -33,12 +33,10 @@ export default function AuditPage() {
   const [elapsed, setElapsed]           = useState(0)
   const timerRef                        = useRef<NodeJS.Timeout>()
 
-  // Modal skip
+  // Modals
   const [showSkip, setShowSkip]         = useState(false)
   const [skipReason, setSkipReason]     = useState<SkipReason>('Cuti')
   const [skipNote, setSkipNote]         = useState('')
-
-  // Modal list auditee
   const [showList, setShowList]         = useState(false)
 
   // Toast
@@ -48,7 +46,7 @@ export default function AuditPage() {
   function showToast(msg: string) {
     setToast(msg)
     clearTimeout(toastRef.current)
-    toastRef.current = setTimeout(() => setToast(''), 3000)
+    toastRef.current = setTimeout(() => setToast(''), 3500)
   }
 
   // Load session & data
@@ -57,36 +55,37 @@ export default function AuditPage() {
     if (!raw) { router.push('/'); return }
     const sess: ActiveSession = JSON.parse(raw)
     setSession(sess)
-
-    // Hitung elapsed dari startTime
     setElapsed(Math.floor((Date.now() - sess.startTime) / 1000))
 
-    // Load checklist & score config
     Promise.all([
       supabase.from('checklist_items').select('*').eq('lokasi_id', sess.lokasiId).eq('aktif', true).order('nomor'),
       supabase.from('score_config').select('*').order('nilai'),
-    ]).then(([{ data: cl }, { data: sc }]) => {
+      supabase.from('members').select('*').eq('lokasi_id', sess.lokasiId).eq('aktif', true),
+    ]).then(([{ data: cl }, { data: sc }, { data: mb }]) => {
       if (cl) setChecklist(cl)
       if (sc) setScoreConfig(sc)
+      if (mb) {
+        const map: Record<string, Member> = {}
+        mb.forEach(m => { map[m.nama] = m })
+        setMemberMap(map)
+      }
     })
 
-    // Load hasil yang sudah tersimpan (resume)
     supabase.from('audit_results').select('*').eq('session_id', sess.sessionId)
       .then(({ data }) => {
         if (!data) return
         const saved: Record<string, AuditeeResult> = {}
         data.forEach(r => {
           saved[r.auditee_name] = {
-            scores:      (r.scores as Record<string, number>) ?? {},
-            remarks:     (r.remarks as Record<string, string>) ?? {},
-            skipped:     r.skipped,
-            skip_reason: r.skip_reason,
-            saved:       true,
+            scores:          (r.scores as Record<string, number>) ?? {},
+            remarks:         (r.remarks as Record<string, string>) ?? {},
+            nonBobotAnswers: (r.non_bobot_answers as Record<string, string>) ?? {},
+            skipped:         r.skipped,
+            skip_reason:     r.skip_reason,
+            saved:           true,
           }
         })
         setResults(saved)
-
-        // Lanjut ke auditee yang belum diisi
         if (sess.members.length > 0) {
           const firstUnsaved = sess.members.findIndex(m => !saved[m])
           setCurrentIdx(firstUnsaved >= 0 ? firstUnsaved : sess.members.length - 1)
@@ -113,27 +112,25 @@ export default function AuditPage() {
   const saveResult = useCallback(async (name: string, data: AuditeeResult) => {
     if (!session) return
     setSaving(true)
-    const cl = checklist
-    const total   = cl.reduce((s, item) => s + (data.scores[item.id] ?? 0) * item.bobot, 0)
-    const maxPoss = cl.reduce((s, item) => s + 4 * item.bobot, 0)
-    const persen  = maxPoss > 0 ? Math.round((total / maxPoss) * 100) : 0
-    const kategori = data.skipped ? null
-      : persen >= 85 ? 'EX' : persen >= 60 ? 'SD' : 'NI'
+    const bobotItems = checklist.filter(i => i.tipe !== 'non_bobot')
+    const total   = bobotItems.reduce((s, item) => s + (data.scores[item.id] ?? 0) * item.bobot, 0)
+    const maxPoss = bobotItems.reduce((s, item) => s + 4 * item.bobot, 0)
 
     await fetch('/api/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        session_id:   session.sessionId,
-        lokasi_id:    session.lokasiId,
-        tanggal:      session.tanggal,
-        auditee_name: name,
-        scores:       data.scores,
-        remarks:      data.remarks,
-        total_score:  Math.round(total),
-        max_score:    Math.round(maxPoss),
-        skipped:      data.skipped,
-        skip_reason:  data.skip_reason,
+        session_id:        session.sessionId,
+        lokasi_id:         session.lokasiId,
+        tanggal:           session.tanggal,
+        auditee_name:      name,
+        scores:            data.scores,
+        remarks:           data.remarks,
+        non_bobot_answers: data.nonBobotAnswers,
+        total_score:       Math.round(total),
+        max_score:         Math.round(maxPoss),
+        skipped:           data.skipped,
+        skip_reason:       data.skip_reason,
       }),
     })
 
@@ -143,20 +140,23 @@ export default function AuditPage() {
 
   if (!session) return null
 
-  const members    = session.members
-  const auditee    = members[currentIdx]
-  const current    = results[auditee] ?? { scores: {}, remarks: {}, skipped: false, skip_reason: null, saved: false }
-  const doneCount  = members.filter(m => results[m]?.saved).length
+  const members   = session.members
+  const auditee   = members[currentIdx]
+  const current   = results[auditee] ?? { scores: {}, remarks: {}, nonBobotAnswers: {}, skipped: false, skip_reason: null, saved: false }
+  const doneCount = members.filter(m => results[m]?.saved).length
 
-  // ── Hitung score current auditee ──────────────────────────────
+  // Equipment info untuk auditee aktif
+  const auditeeInfo = memberMap[auditee]
+
+  // ── Score hanya dari bobot items ──────────────────────────────
   function hitungScore() {
-    const total   = checklist.reduce((s, item) => s + (current.scores[item.id] ?? 0) * item.bobot, 0)
-    const maxPoss = checklist.reduce((s, item) => s + 4 * item.bobot, 0)
+    const bobotItems = checklist.filter(i => i.tipe !== 'non_bobot')
+    const total   = bobotItems.reduce((s, item) => s + (current.scores[item.id] ?? 0) * item.bobot, 0)
+    const maxPoss = bobotItems.reduce((s, item) => s + 4 * item.bobot, 0)
     const persen  = maxPoss > 0 ? Math.round((total / maxPoss) * 100) : 0
     return { total: Math.round(total), max: Math.round(maxPoss), persen }
   }
 
-  // ── Update score satu item ────────────────────────────────────
   function setScore(itemId: string, nilai: number) {
     setResults(prev => ({
       ...prev,
@@ -171,37 +171,71 @@ export default function AuditPage() {
     }))
   }
 
-  // ── Simpan & lanjut ke berikutnya ────────────────────────────
+  function setNonBobotAnswer(itemId: string, label: string) {
+    setResults(prev => ({
+      ...prev,
+      [auditee]: { ...current, nonBobotAnswers: { ...current.nonBobotAnswers, [itemId]: label } },
+    }))
+  }
+
+  // ── Validasi & lanjut ─────────────────────────────────────────
   async function handleNext() {
     if (!current.skipped) {
-      const missing = checklist.filter(item => current.scores[item.id] === undefined)
-      if (missing.length > 0) {
-        showToast(`${missing.length} item belum dinilai: ${missing.map(i => i.item).join(', ')}`)
+      const bobotItems   = checklist.filter(i => i.tipe !== 'non_bobot')
+      const nonBobotItems = checklist.filter(i => i.tipe === 'non_bobot')
+
+      // Cek bobot items
+      const missingScore = bobotItems.filter(item => current.scores[item.id] === undefined)
+      if (missingScore.length > 0) {
+        showToast(`${missingScore.length} item belum dinilai: ${missingScore.map(i => i.item).join(', ')}`)
         return
       }
+
+      // Cek bobot items — komentar wajib jika skor ≤ 2
+      const missingRemark = bobotItems.filter(item => {
+        const score = current.scores[item.id] ?? -1
+        return score <= 2 && score >= 0 && !current.remarks[item.id]?.trim()
+      })
+      if (missingRemark.length > 0) {
+        showToast(`Wajib isi catatan untuk skor rendah: ${missingRemark.map(i => i.item).join(', ')}`)
+        return
+      }
+
+      // Cek non-bobot items
+      for (const item of nonBobotItems) {
+        const answer = current.nonBobotAnswers[item.id]
+        if (!answer) {
+          showToast(`Pilih jawaban untuk: ${item.item}`)
+          return
+        }
+        const jawaban = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+        const answerConfig = jawaban.find(j => j.label === answer)
+        if (answerConfig?.wajib_komentar && !current.remarks[item.id]?.trim()) {
+          showToast(`Wajib isi komentar untuk "${answer}" pada: ${item.item}`)
+          return
+        }
+      }
     }
+
     await saveResult(auditee, current)
     if (currentIdx < members.length - 1) {
       setCurrentIdx(i => i + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else {
-      // Semua selesai → ke review
       sessionStorage.setItem('auditTimer', formatTimer(elapsed))
       router.push('/review')
     }
   }
 
-  // ── Skip ─────────────────────────────────────────────────────
   async function handleSkip() {
     const skippedData: AuditeeResult = {
-      scores: {}, remarks: {}, skipped: true,
+      scores: {}, remarks: {}, nonBobotAnswers: {}, skipped: true,
       skip_reason: skipNote ? `${skipReason} — ${skipNote}` : skipReason,
       saved: false,
     }
     setResults(prev => ({ ...prev, [auditee]: skippedData }))
     await saveResult(auditee, skippedData)
-    setShowSkip(false)
-    setSkipNote('')
+    setShowSkip(false); setSkipNote('')
     if (currentIdx < members.length - 1) {
       setCurrentIdx(i => i + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -213,6 +247,22 @@ export default function AuditPage() {
 
   const { persen } = hitungScore()
   const bulan = new Date(session.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+  const bobotItems    = checklist.filter(i => i.tipe !== 'non_bobot')
+  const nonBobotItems = checklist.filter(i => i.tipe === 'non_bobot')
+
+  // Deteksi apakah nama checklist item merujuk ke Camera atau HT
+  function detectEquipment(itemName: string): { type: 'camera' | 'ht' | null; sn: string | null } {
+    const lower = itemName.toLowerCase()
+    if (lower.includes('camera') || lower.includes('kamera')) {
+      if (auditeeInfo?.cam_required === false) return { type: 'camera', sn: null }
+      return { type: 'camera', sn: auditeeInfo?.sn_camera ?? null }
+    }
+    if (lower.includes(' ht') || lower.includes('handy') || lower.startsWith('ht')) {
+      if (auditeeInfo?.ht_required === false) return { type: 'ht', sn: null }
+      return { type: 'ht', sn: auditeeInfo?.sn_ht ?? null }
+    }
+    return { type: null, sn: null }
+  }
 
   return (
     <div className="min-h-screen pb-32">
@@ -241,40 +291,48 @@ export default function AuditPage() {
                 PIC: {session.auditor1}{session.auditor2 ? ' & ' + session.auditor2 : ''}
               </div>
             </div>
-
-            {/* Timer */}
             <div className="flex items-center gap-1 bg-brand-pale text-brand px-2.5 py-1 rounded-xl">
               <span className="material-icons-round text-sm">timer</span>
               <span className="text-xs font-bold font-mono">{formatTimer(elapsed)}</span>
             </div>
-
-            {/* List button */}
             <button onClick={() => setShowList(true)}
               className="w-9 h-9 rounded-xl border border-surface-border flex items-center justify-center text-ink-2 hover:bg-brand-pale hover:border-brand hover:text-brand transition-all">
               <span className="material-icons-round text-lg">format_list_bulleted</span>
             </button>
-
-            {/* Skip button */}
             <button onClick={() => setShowSkip(true)}
               className="w-9 h-9 rounded-xl border border-danger/30 flex items-center justify-center text-danger hover:bg-danger-light transition-all">
               <span className="material-icons-round text-lg">skip_next</span>
             </button>
           </div>
 
-          {/* Row 2: progress */}
+          {/* Row 2: equipment info */}
+          {(auditeeInfo?.sn_camera || auditeeInfo?.sn_ht) && (
+            <div className="flex items-center gap-3 pb-1.5 flex-wrap">
+              {auditeeInfo.sn_camera && (
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                  <span className="material-icons-round text-xs">photo_camera</span>
+                  <span>{auditeeInfo.sn_camera}</span>
+                </div>
+              )}
+              {auditeeInfo.sn_ht && (
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="material-icons-round text-xs">settings_remote</span>
+                  <span>{auditeeInfo.sn_ht}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Row 3: progress */}
           <div className="pb-3">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] font-bold text-ink-2">Auditee {currentIdx + 1} dari {members.length}</span>
               <span className="text-[11px] text-ink-3">{doneCount}/{members.length} selesai</span>
             </div>
-
-            {/* Progress bar */}
             <div className="h-1.5 bg-surface-border rounded-full overflow-hidden mb-2">
               <div className="h-full bg-gradient-brand rounded-full transition-all duration-500"
                 style={{ width: `${(doneCount / members.length) * 100}%` }} />
             </div>
-
-            {/* Dot indicator */}
             <div className="flex gap-1 flex-wrap">
               {members.map((m, i) => {
                 const r = results[m]
@@ -282,13 +340,11 @@ export default function AuditPage() {
                 const isSkipped = r?.skipped
                 const isActive  = i === currentIdx
                 return (
-                  <button key={m} onClick={() => setCurrentIdx(i)}
-                    title={m}
+                  <button key={m} onClick={() => setCurrentIdx(i)} title={m}
                     className={`h-2 rounded-full transition-all duration-200 ${
                       isActive  ? 'w-5 bg-brand' :
                       isSkipped ? 'w-2 bg-warning' :
-                      isDone    ? 'w-2 bg-success' :
-                                  'w-2 bg-surface-border'
+                      isDone    ? 'w-2 bg-success' : 'w-2 bg-surface-border'
                     }`} />
                 )
               })}
@@ -309,13 +365,32 @@ export default function AuditPage() {
             <div className="flex-1">
               <div className="text-[11px] text-ink-3 font-medium">Sedang diaudit</div>
               <div className="text-base font-extrabold text-ink">{auditee}</div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-brand-pale text-brand">{session.lokasiNama}</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface text-ink-3">{checklist.length} item</span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface text-ink-3">{bobotItems.length} item bobot</span>
+                {nonBobotItems.length > 0 && (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">{nonBobotItems.length} item lainnya</span>
+                )}
                 {current.saved && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-success-light text-success">✓ Tersimpan</span>}
               </div>
+              {/* Camera & HT serial */}
+              {(auditeeInfo?.sn_camera || auditeeInfo?.sn_ht) && (
+                <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-surface-border">
+                  {auditeeInfo.sn_camera && (
+                    <div className="flex items-center gap-2">
+                      <span className="material-icons-round text-base" style={{ color: '#7C6EF5' }}>photo_camera</span>
+                      <span className="text-sm font-bold text-ink">{auditeeInfo.sn_camera}</span>
+                    </div>
+                  )}
+                  {auditeeInfo?.ht_required !== false && auditeeInfo?.sn_ht && (
+                    <div className="flex items-center gap-2">
+                      <span className="material-icons-round text-base" style={{ color: '#10B981' }}>settings_remote</span>
+                      <span className="text-sm font-bold text-ink">{auditeeInfo.sn_ht}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            {/* Score preview */}
             <div className="text-right">
               <div className="text-xl font-extrabold text-brand">{persen}<span className="text-sm font-bold">%</span></div>
               <div className="text-[10px] text-ink-3">score</div>
@@ -337,8 +412,8 @@ export default function AuditPage() {
           </div>
         </div>
 
-        {/* Checklist items */}
-        {checklist.map((item, i) => {
+        {/* ── BOBOT CHECKLIST ITEMS ─────────────────────────── */}
+        {bobotItems.map((item, i) => {
           const scored = current.scores[item.id] ?? -1
           const remark = current.remarks[item.id] ?? ''
           return (
@@ -362,7 +437,6 @@ export default function AuditPage() {
                 )}
               </div>
               <div className="p-4 flex flex-col gap-3">
-                {/* Score buttons 0–4 */}
                 <div className="grid grid-cols-5 gap-2">
                   {[0, 1, 2, 3, 4].map(n => {
                     const sc = scoreConfig.find(s => s.nilai === n)
@@ -382,8 +456,6 @@ export default function AuditPage() {
                     )
                   })}
                 </div>
-
-                {/* Remark input — wajib jika skor ≤ 2 */}
                 {(scored <= 2 && scored >= 0) ? (
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-1.5">
@@ -405,6 +477,113 @@ export default function AuditPage() {
                     value={remark}
                     onChange={e => setRemark(item.id, e.target.value)}
                     placeholder="Catatan / temuan (opsional)..."
+                    className="inp text-xs py-2.5"
+                  />
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        {/* ── NON-BOBOT CHECKLIST ITEMS ─────────────────────── */}
+        {nonBobotItems.length > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex-1 h-px bg-emerald-200" />
+            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Item Non-Bobot</span>
+            <div className="flex-1 h-px bg-emerald-200" />
+          </div>
+        )}
+
+        {nonBobotItems.map((item, i) => {
+          const jawaban      = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+          const chosen       = current.nonBobotAnswers[item.id] ?? ''
+          const chosenConfig = jawaban.find(j => j.label === chosen)
+          const remark       = current.remarks[item.id] ?? ''
+          const equip        = detectEquipment(item.item)
+
+          return (
+            <div key={item.id} className="card fade-up border-emerald-100" style={{ animationDelay: `${0.05 + (bobotItems.length + i) * 0.03}s` }}>
+              <div className="card-head flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[11px] font-extrabold text-emerald-600">{item.nomor}</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-bold text-ink">{item.item}</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">Non-Bobot</span>
+                  </div>
+                  {item.deskripsi && <div className="text-[11px] text-ink-3 mt-0.5">{item.deskripsi}</div>}
+                  {/* Serial number equipment jika terdeteksi */}
+                  {equip.type === 'camera' && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span className="material-icons-round text-lg" style={{ color: auditeeInfo?.cam_required === false ? '#9CA3AF' : '#7C6EF5' }}>photo_camera</span>
+                      <span className={`text-sm font-bold ${
+                        auditeeInfo?.cam_required === false ? 'text-ink-3 italic' :
+                        equip.sn ? 'text-purple-700' : 'text-ink-3 italic'
+                      }`}>
+                        {auditeeInfo?.cam_required === false ? 'Tidak wajib pegang' : (equip.sn ?? 'Serial belum diisi')}
+                      </span>
+                    </div>
+                  )}
+                  {equip.type === 'ht' && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span className="material-icons-round text-lg" style={{ color: auditeeInfo?.ht_required === false ? '#9CA3AF' : '#10B981' }}>settings_remote</span>
+                      <span className={`text-sm font-bold ${
+                        auditeeInfo?.ht_required === false ? 'text-ink-3 italic' :
+                        equip.sn ? 'text-emerald-700' : 'text-ink-3 italic'
+                      }`}>
+                        {auditeeInfo?.ht_required === false ? 'Tidak wajib pegang' : (equip.sn ?? 'Serial belum diisi')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {chosen && (
+                  <div className="px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0"
+                    style={{ background: '#10B98115', color: '#10B981' }}>
+                    {chosen}
+                  </div>
+                )}
+              </div>
+              <div className="p-4 flex flex-col gap-3">
+                {/* Custom answer buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {jawaban.map(j => (
+                    <button
+                      key={j.label}
+                      onClick={() => setNonBobotAnswer(item.id, j.label)}
+                      className="px-3 py-2 rounded-2xl text-xs font-bold border-2 transition-all"
+                      style={{
+                        borderColor: chosen === j.label ? '#10B981' : 'transparent',
+                        background:  chosen === j.label ? '#10B98115' : '#F4F3FF',
+                        color:       chosen === j.label ? '#10B981' : '#9CA3AF',
+                      }}>
+                      {j.label}
+                      {j.wajib_komentar && <span className="ml-1 text-[9px]">💬*</span>}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Komentar */}
+                {chosen && chosenConfig?.wajib_komentar ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-icons-round text-warning text-sm">warning_amber</span>
+                      <span className="text-[11px] font-bold text-warning">Wajib isi komentar untuk "{chosen}"</span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={remark}
+                      onChange={e => setRemark(item.id, e.target.value)}
+                      placeholder="Jelaskan kondisi / detail temuan..."
+                      className="inp text-xs py-2.5 resize-none border-warning/60 focus:border-warning focus:ring-warning/20"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={remark}
+                    onChange={e => setRemark(item.id, e.target.value)}
+                    placeholder="Komentar (opsional)..."
                     className="inp text-xs py-2.5"
                   />
                 )}
@@ -438,7 +617,6 @@ export default function AuditPage() {
                 <div className="text-[11px] text-ink-3">{auditee}</div>
               </div>
             </div>
-
             <div>
               <div className="text-xs font-bold text-ink-2 mb-2">Alasan skip</div>
               <div className="grid grid-cols-2 gap-2">
@@ -454,14 +632,12 @@ export default function AuditPage() {
                 ))}
               </div>
             </div>
-
             <div>
               <div className="text-xs font-bold text-ink-2 mb-1.5">Keterangan tambahan (opsional)</div>
               <input type="text" value={skipNote} onChange={e => setSkipNote(e.target.value)}
                 placeholder="cth: cuti tahunan s/d 15 Juli..."
                 className="inp text-xs" />
             </div>
-
             <div className="flex gap-2">
               <button onClick={() => { setShowSkip(false); setSkipNote('') }}
                 className="btn-secondary flex-1 text-sm py-3">Batal</button>
@@ -478,36 +654,33 @@ export default function AuditPage() {
       {showList && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
           style={{ background: 'rgba(22,22,42,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-card-hover flex flex-col max-h-[70vh] animate-[fadeUp_0.2s_ease]">
-            <div className="p-4 border-b border-surface-border flex items-center justify-between">
-              <div className="text-sm font-extrabold text-ink">List Auditee</div>
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-card-hover p-5 flex flex-col gap-3 animate-[fadeUp_0.2s_ease]">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-extrabold text-ink">Semua Auditee</div>
               <button onClick={() => setShowList(false)}
                 className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-3 hover:bg-surface transition-all">
                 <span className="material-icons-round text-lg">close</span>
               </button>
             </div>
-            <div className="overflow-y-auto p-3 flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 max-h-80 overflow-y-auto">
               {members.map((m, i) => {
                 const r = results[m]
-                const isDone    = r?.saved && !r.skipped
+                const isDone    = r?.saved
                 const isSkipped = r?.skipped
                 const isActive  = i === currentIdx
                 return (
                   <button key={m} onClick={() => { setCurrentIdx(i); setShowList(false) }}
-                    className={`flex items-center gap-3 p-3 rounded-2xl text-left transition-all ${
-                      isActive ? 'bg-brand-pale border-2 border-brand' : 'border border-surface-border hover:border-brand/40'
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
+                      isActive ? 'border-brand bg-brand-pale' : 'border-surface-border hover:border-brand/30'
                     }`}>
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
-                      isActive  ? 'bg-brand text-white' :
-                      isSkipped ? 'bg-warning/20 text-warning' :
-                      isDone    ? 'bg-success-light text-success' :
-                                  'bg-surface text-ink-3'
-                    }`}>
-                      {isSkipped ? '–' : isDone ? '✓' : i + 1}
-                    </div>
-                    <span className={`text-xs font-bold ${isActive ? 'text-brand' : 'text-ink'}`}>{m}</span>
-                    {isSkipped && <span className="ml-auto text-[10px] text-warning font-semibold">Skip</span>}
-                    {isDone    && <span className="ml-auto text-[10px] text-success font-semibold">{results[m] ? Math.round(Object.values(results[m].scores).reduce((a, b) => a + b, 0)) : 0}pt</span>}
+                    <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                      isActive ? 'bg-brand text-white' :
+                      isSkipped ? 'bg-warning text-white' :
+                      isDone ? 'bg-success text-white' : 'bg-surface text-ink-3'
+                    }`}>{i + 1}</span>
+                    <span className="flex-1 text-xs font-semibold text-ink truncate">{m}</span>
+                    {isSkipped && <span className="text-[10px] text-warning font-bold">Skip</span>}
+                    {isDone && !isSkipped && <span className="material-icons-round text-success text-sm">check_circle</span>}
                   </button>
                 )
               })}
@@ -515,7 +688,6 @@ export default function AuditPage() {
           </div>
         </div>
       )}
-
     </div>
   )
 }
