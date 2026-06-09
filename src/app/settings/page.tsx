@@ -262,6 +262,7 @@ export default function SettingsPage() {
     { id: 'checklist', label: 'Checklist', icon: 'checklist' },
     { id: 'score',     label: 'Skor',      icon: 'star' },
   ]
+  const tabIndex = tabs.findIndex(t => t.id === activeTab)
 
   const timeLeftSec = Math.ceil(timeLeft / 1000)
   const timeLeftMin = Math.floor(timeLeftSec / 60)
@@ -301,13 +302,19 @@ export default function SettingsPage() {
 
       <main className="max-w-lg mx-auto px-5 py-6 flex flex-col gap-4">
         {/* Tab nav */}
-        <div className="grid grid-cols-4 gap-1.5 p-1 bg-[#E8E6FF] rounded-2xl border border-surface-border">
+        <div className="relative grid grid-cols-4 gap-1.5 p-1 bg-[#E8E6FF] rounded-2xl border border-surface-border">
+          {/* Sliding pill */}
+          <div
+            className="absolute top-1 bottom-1 rounded-xl bg-white shadow-sm pointer-events-none transition-all duration-300 ease-out"
+            style={{
+              width: 'calc((100% - 26px) / 4)',
+              left: `calc(4px + ${tabIndex} * ((100% - 26px) / 4 + 6px))`,
+            }}
+          />
           {tabs.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11px] font-bold transition-all ${
-                activeTab === t.id
-                  ? 'bg-white text-brand shadow-sm'
-                  : 'text-ink-2 hover:text-brand'
+              className={`relative z-10 flex flex-col items-center gap-0.5 py-2 rounded-xl text-[11px] font-bold transition-colors duration-200 ${
+                activeTab === t.id ? 'text-brand' : 'text-ink-2 hover:text-brand'
               }`}>
               <span className="material-icons-round text-base">{t.icon}</span>
               {t.label}
@@ -1056,6 +1063,7 @@ function ChecklistTab() {
   const [saving,     setSaving]     = useState(false)
   const [saveError,  setSaveError]  = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ChecklistItem | null>(null)
+  const [dragIdx,      setDragIdx]      = useState<number | null>(null)
   const [copyModal,    setCopyModal]    = useState(false)
   const [copyFrom,     setCopyFrom]     = useState('')
   const [copyFromItems, setCopyFromItems] = useState<ChecklistItem[]>([])
@@ -1198,10 +1206,34 @@ function ChecklistTab() {
     setItems(prev => prev.map(i => i.id === c.id ? { ...i, aktif: !c.aktif } : i))
   }
 
+  async function saveOrder(newList: ChecklistItem[]) {
+    await fetch('/api/settings/checklist/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: newList.map((c, i) => ({ id: c.id, nomor: i + 1 })) }),
+    })
+  }
+
+  function moveUp(i: number) {
+    if (i === 0) return
+    const newList = [...items]
+    ;[newList[i - 1], newList[i]] = [newList[i], newList[i - 1]]
+    setItems(newList); saveOrder(newList)
+  }
+
+  function moveDown(i: number) {
+    if (i === items.length - 1) return
+    const newList = [...items]
+    ;[newList[i], newList[i + 1]] = [newList[i + 1], newList[i]]
+    setItems(newList); saveOrder(newList)
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return
     await fetch(`/api/settings/checklist/${deleteTarget.id}`, { method: 'DELETE' })
-    setItems(prev => prev.filter(i => i.id !== deleteTarget.id))
+    const newList = items.filter(i => i.id !== deleteTarget.id)
+    setItems(newList)
+    saveOrder(newList)
     setDeleteTarget(null)
   }
 
@@ -1333,13 +1365,35 @@ function ChecklistTab() {
           </div>
 
           {/* List items */}
-          <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1">
-            {items.map(c => {
+          <div className="flex flex-col gap-2 max-h-[520px] overflow-y-auto pr-1">
+            {items.map((c, i) => {
               const isNonBobot = c.tipe === 'non_bobot'
               const jawaban = (c.jawaban_custom as CustomAnswer[] | null) ?? []
               return (
-                <div key={c.id} className={`flex items-start gap-2 p-3 rounded-xl border transition-all ${c.aktif ? 'border-surface-border bg-white' : 'border-surface-border bg-surface opacity-50'}`}>
-                  <span className="w-5 h-5 rounded-md bg-brand-pale flex items-center justify-center text-[10px] font-bold text-brand flex-shrink-0 mt-0.5">{c.nomor}</span>
+                <div key={c.id}
+                  draggable
+                  onDragStart={() => setDragIdx(i)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => {
+                    if (dragIdx === null || dragIdx === i) return
+                    const newList = [...items]
+                    const [moved] = newList.splice(dragIdx, 1)
+                    newList.splice(i, 0, moved)
+                    setItems(newList); setDragIdx(null); saveOrder(newList)
+                  }}
+                  className={`flex items-start gap-2 p-3 rounded-xl border transition-all ${c.aktif ? 'border-surface-border bg-white' : 'border-surface-border bg-surface opacity-50'}`}>
+                  <div className="flex flex-col gap-px sm:hidden mt-0.5">
+                    <button type="button" onClick={() => moveUp(i)} disabled={i === 0}
+                      className="w-4 h-4 flex items-center justify-center text-ink-3 disabled:opacity-20">
+                      <span className="material-icons-round text-xs leading-none">arrow_drop_up</span>
+                    </button>
+                    <button type="button" onClick={() => moveDown(i)} disabled={i === items.length - 1}
+                      className="w-4 h-4 flex items-center justify-center text-ink-3 disabled:opacity-20">
+                      <span className="material-icons-round text-xs leading-none">arrow_drop_down</span>
+                    </button>
+                  </div>
+                  <span className="material-icons-round text-ink-3 text-base hidden sm:block mt-0.5 cursor-grab active:cursor-grabbing">drag_indicator</span>
+                  <span className="w-5 h-5 rounded-md bg-brand-pale flex items-center justify-center text-[10px] font-bold text-brand flex-shrink-0 mt-0.5">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold text-ink">{c.item}</span>

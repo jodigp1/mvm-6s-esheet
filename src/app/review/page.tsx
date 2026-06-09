@@ -121,6 +121,69 @@ export default function ReviewPage() {
   }
   */
 
+  function ChecklistLegend() {
+    if (checklist.length === 0) return null
+    const bobotCount = checklist.filter(i => i.tipe !== 'non_bobot').length
+    const nbCount    = checklist.filter(i => i.tipe === 'non_bobot').length
+    return (
+      <div className="rounded-3xl overflow-hidden border border-surface-border shadow-card fade-up print:break-before-page" style={{ animationDelay: '0.12s' }}>
+        <div className="bg-white">
+          <div className="card-head flex items-center gap-3">
+            <div className="ico-wrap ico-brand"><span className="material-icons-round">list_alt</span></div>
+            <div>
+              <div className="text-sm font-bold text-ink">Keterangan Item Checklist</div>
+              <div className="text-[11px] text-ink-3">{checklist.length} item · {bobotCount} bobot · {nbCount} non-bobot</div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-surface">
+                  <th className="px-3 py-2.5 text-center font-bold text-ink-2 w-8">#</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-ink-2">Nama Item</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-ink-2">Deskripsi</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-ink-2 whitespace-nowrap">Tipe</th>
+                  <th className="px-3 py-2.5 text-left font-bold text-ink-2">Bobot / Pilihan Jawaban</th>
+                </tr>
+              </thead>
+              <tbody>
+                {checklist.map((item, i) => {
+                  const isNB    = item.tipe === 'non_bobot'
+                  const jawaban = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+                  return (
+                    <tr key={item.id} className="border-t border-surface-border">
+                      <td className="px-3 py-2 text-ink-3 text-center">{i + 1}</td>
+                      <td className="px-3 py-2 font-semibold text-ink">{item.item}</td>
+                      <td className="px-3 py-2 text-ink-3">{item.deskripsi || '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {isNB
+                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">Non-Bobot</span>
+                          : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-pale text-brand">Bobot {item.bobot}</span>
+                        }
+                      </td>
+                      <td className="px-3 py-2">
+                        {isNB
+                          ? <div className="flex flex-wrap gap-1">
+                              {jawaban.map((j, k) => (
+                                <span key={k} className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${j.wajib_komentar ? 'bg-warning/10 text-warning' : 'bg-surface text-ink-3'}`}>
+                                  {j.label}{j.wajib_komentar ? ' 💬' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          : <span className="text-ink-2 font-semibold">{item.bobot}</span>
+                        }
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function ScoreBubble({ val }: { val: number | undefined }) {
     if (val === undefined || val < 0) return <span className="text-ink-3">—</span>
     const sc = scoreConfig.find(s => s.nilai === val)
@@ -421,6 +484,9 @@ export default function ReviewPage() {
             }
           </button>
         </div>
+
+        {/* ── KETERANGAN CHECKLIST ────────────────────────────── */}
+        <ChecklistLegend />
 
       </main>
     </div>

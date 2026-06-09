@@ -32,6 +32,7 @@ export default function AuditPage() {
   // Timer
   const [elapsed, setElapsed]           = useState(0)
   const timerRef                        = useRef<NodeJS.Timeout>()
+  const elapsedRef                      = useRef(0)
 
   // Modals
   const [showSkip, setShowSkip]         = useState(false)
@@ -55,7 +56,8 @@ export default function AuditPage() {
     if (!raw) { router.push('/'); return }
     const sess: ActiveSession = JSON.parse(raw)
     setSession(sess)
-    setElapsed(Math.floor((Date.now() - sess.startTime) / 1000))
+    const savedElapsed = sessionStorage.getItem('auditElapsedSec')
+    setElapsed(savedElapsed ? parseInt(savedElapsed, 10) : Math.floor((Date.now() - sess.startTime) / 1000))
 
     Promise.all([
       supabase.from('checklist_items').select('*').eq('lokasi_id', sess.lokasiId).eq('aktif', true).order('nomor'),
@@ -93,11 +95,65 @@ export default function AuditPage() {
       })
   }, [router])
 
-  // Timer
+  // Sync elapsed ref (untuk save-on-unmount)
+  useEffect(() => { elapsedRef.current = elapsed }, [elapsed])
+
+  // Timer — pause saat tab hidden / navigasi keluar, resume saat kembali
   useEffect(() => {
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
-    return () => clearInterval(timerRef.current)
+
+    function onVisibility() {
+      if (document.hidden) {
+        clearInterval(timerRef.current)
+      } else {
+        timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      clearInterval(timerRef.current)
+      document.removeEventListener('visibilitychange', onVisibility)
+      sessionStorage.setItem('auditElapsedSec', String(elapsedRef.current))
+    }
   }, [])
+
+  // Auto-set "Tidak pegang" untuk item camera/HT jika member tidak wajib pegang
+  useEffect(() => {
+    if (!session) return
+    const auditeeName = session.members[currentIdx]
+    if (!auditeeName) return
+    const info = memberMap[auditeeName]
+    if (!info) return
+    const nbItems = checklist.filter(i => i.tipe === 'non_bobot')
+    if (nbItems.length === 0) return
+
+    setResults(prev => {
+      const cur = prev[auditeeName] ?? { scores: {}, remarks: {}, nonBobotAnswers: {}, skipped: false, skip_reason: null, saved: false }
+      const updates: Record<string, string> = {}
+
+      nbItems.forEach(item => {
+        if (cur.nonBobotAnswers[item.id]) return
+        const lower = item.item.toLowerCase()
+        const isCamera = lower.includes('camera') || lower.includes('kamera')
+        const isHT = !isCamera && (lower.includes(' ht') || lower.includes('handy') || lower.startsWith('ht'))
+        if (!isCamera && !isHT) return
+
+        const notRequired = isCamera ? info.cam_required === false : info.ht_required === false
+        if (!notRequired) return
+
+        const jawaban = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+        const tidakPegang = jawaban.find(j => j.label.toLowerCase().includes('tidak pegang'))
+        if (tidakPegang) updates[item.id] = tidakPegang.label
+      })
+
+      if (Object.keys(updates).length === 0) return prev
+      return {
+        ...prev,
+        [auditeeName]: { ...cur, nonBobotAnswers: { ...cur.nonBobotAnswers, ...updates } },
+      }
+    })
+  }, [currentIdx, session, memberMap, checklist])
 
   const formatTimer = (s: number) => {
     const h = Math.floor(s / 3600)
@@ -222,6 +278,7 @@ export default function AuditPage() {
       setCurrentIdx(i => i + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else {
+      sessionStorage.removeItem('auditElapsedSec')
       sessionStorage.setItem('auditTimer', formatTimer(elapsed))
       router.push('/review')
     }
@@ -240,6 +297,7 @@ export default function AuditPage() {
       setCurrentIdx(i => i + 1)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else {
+      sessionStorage.removeItem('auditElapsedSec')
       sessionStorage.setItem('auditTimer', formatTimer(elapsed))
       router.push('/review')
     }
@@ -251,17 +309,25 @@ export default function AuditPage() {
   const nonBobotItems = checklist.filter(i => i.tipe === 'non_bobot')
 
   // Deteksi apakah nama checklist item merujuk ke Camera atau HT
-  function detectEquipment(itemName: string): { type: 'camera' | 'ht' | null; sn: string | null } {
+  function detectEquipment(itemName: string) {
     const lower = itemName.toLowerCase()
     if (lower.includes('camera') || lower.includes('kamera')) {
-      if (auditeeInfo?.cam_required === false) return { type: 'camera', sn: null }
-      return { type: 'camera', sn: auditeeInfo?.sn_camera ?? null }
+      return {
+        type: 'camera' as const,
+        sn:          auditeeInfo?.sn_camera ?? null,
+        notRequired: auditeeInfo?.cam_required === false,
+        hasSN:       !!auditeeInfo?.sn_camera,
+      }
     }
     if (lower.includes(' ht') || lower.includes('handy') || lower.startsWith('ht')) {
-      if (auditeeInfo?.ht_required === false) return { type: 'ht', sn: null }
-      return { type: 'ht', sn: auditeeInfo?.sn_ht ?? null }
+      return {
+        type: 'ht' as const,
+        sn:          auditeeInfo?.sn_ht ?? null,
+        notRequired: auditeeInfo?.ht_required === false,
+        hasSN:       !!auditeeInfo?.sn_ht,
+      }
     }
-    return { type: null, sn: null }
+    return { type: null, sn: null, notRequired: false, hasSN: false }
   }
 
   return (
@@ -516,51 +582,47 @@ export default function AuditPage() {
                   {/* Serial number equipment jika terdeteksi */}
                   {equip.type === 'camera' && (
                     <div className="flex items-center gap-1.5 mt-2">
-                      <span className="material-icons-round text-lg" style={{ color: auditeeInfo?.cam_required === false ? '#9CA3AF' : '#7C6EF5' }}>photo_camera</span>
-                      <span className={`text-sm font-bold ${
-                        auditeeInfo?.cam_required === false ? 'text-ink-3 italic' :
-                        equip.sn ? 'text-purple-700' : 'text-ink-3 italic'
-                      }`}>
-                        {auditeeInfo?.cam_required === false ? 'Tidak wajib pegang' : (equip.sn ?? 'Serial belum diisi')}
+                      <span className="material-icons-round text-lg" style={{ color: equip.notRequired ? '#9CA3AF' : '#7C6EF5' }}>photo_camera</span>
+                      <span className={`text-sm font-bold ${equip.notRequired ? 'text-ink-3 italic' : equip.sn ? 'text-purple-700' : 'text-ink-3 italic'}`}>
+                        {equip.notRequired ? 'Tidak wajib pegang' : (equip.sn ?? 'Serial belum diisi')}
                       </span>
                     </div>
                   )}
                   {equip.type === 'ht' && (
                     <div className="flex items-center gap-1.5 mt-2">
-                      <span className="material-icons-round text-lg" style={{ color: auditeeInfo?.ht_required === false ? '#9CA3AF' : '#10B981' }}>settings_remote</span>
-                      <span className={`text-sm font-bold ${
-                        auditeeInfo?.ht_required === false ? 'text-ink-3 italic' :
-                        equip.sn ? 'text-emerald-700' : 'text-ink-3 italic'
-                      }`}>
-                        {auditeeInfo?.ht_required === false ? 'Tidak wajib pegang' : (equip.sn ?? 'Serial belum diisi')}
+                      <span className="material-icons-round text-lg" style={{ color: equip.notRequired ? '#9CA3AF' : '#10B981' }}>settings_remote</span>
+                      <span className={`text-sm font-bold ${equip.notRequired ? 'text-ink-3 italic' : equip.sn ? 'text-emerald-700' : 'text-ink-3 italic'}`}>
+                        {equip.notRequired ? 'Tidak wajib pegang' : (equip.sn ?? 'Serial belum diisi')}
                       </span>
                     </div>
                   )}
                 </div>
-                {chosen && (
-                  <div className="px-2 py-1 rounded-lg text-[11px] font-bold flex-shrink-0"
-                    style={{ background: '#10B98115', color: '#10B981' }}>
-                    {chosen}
-                  </div>
-                )}
               </div>
               <div className="p-4 flex flex-col gap-3">
                 {/* Custom answer buttons */}
                 <div className="flex flex-wrap gap-2">
-                  {jawaban.map(j => (
-                    <button
-                      key={j.label}
-                      onClick={() => setNonBobotAnswer(item.id, j.label)}
-                      className="px-3 py-2 rounded-2xl text-xs font-bold border-2 transition-all"
-                      style={{
-                        borderColor: chosen === j.label ? '#10B981' : 'transparent',
-                        background:  chosen === j.label ? '#10B98115' : '#F4F3FF',
-                        color:       chosen === j.label ? '#10B981' : '#9CA3AF',
-                      }}>
-                      {j.label}
-                      {j.wajib_komentar && <span className="ml-1 text-[9px]">💬*</span>}
-                    </button>
-                  ))}
+                  {jawaban.map(j => {
+                    const isTidakPegang = j.label.toLowerCase().includes('tidak pegang')
+                    // Disable jika item equipment: notRequired → semua disable; hasSN → "Tidak pegang" disable
+                    const btnDisabled = equip.type !== null && (
+                      equip.notRequired ? true : (equip.hasSN && isTidakPegang)
+                    )
+                    return (
+                      <button
+                        key={j.label}
+                        onClick={() => setNonBobotAnswer(item.id, j.label)}
+                        disabled={btnDisabled}
+                        className="px-3 py-2 rounded-2xl text-xs font-bold border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{
+                          borderColor: chosen === j.label ? '#10B981' : 'transparent',
+                          background:  chosen === j.label ? '#10B98115' : '#F4F3FF',
+                          color:       chosen === j.label ? '#10B981' : '#9CA3AF',
+                        }}>
+                        {j.label}
+                        {j.wajib_komentar && <span className="ml-1 text-[9px]">💬*</span>}
+                      </button>
+                    )
+                  })}
                 </div>
 
                 {/* Komentar */}

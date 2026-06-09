@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import type { AuditSession, AuditResult, Lokasi, ChecklistItem, ScoreConfig } from '@/types/database'
+import type { AuditSession, AuditResult, Lokasi, ChecklistItem, ScoreConfig, CustomAnswer } from '@/types/database'
 import { KATEGORI_LABEL } from '@/types/database'
 
 type SessionWithLokasi = AuditSession & {
@@ -209,8 +209,22 @@ export default function HistoryPage() {
       })
       return row
     })
+    const legendRows = detailChecklist.map((item, i) => {
+      const isNB    = item.tipe === 'non_bobot'
+      const jawaban = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+      return {
+        '#': i + 1,
+        'Nama Item': item.item,
+        'Deskripsi': item.deskripsi ?? '',
+        'Tipe': isNB ? 'Non-Bobot' : 'Bobot',
+        'Bobot / Pilihan Jawaban': isNB
+          ? jawaban.map(j => j.label + (j.wajib_komentar ? ' (wajib komentar)' : '')).join(', ')
+          : String(item.bobot),
+      }
+    })
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Hasil Audit')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(legendRows), 'Keterangan Checklist')
     XLSX.writeFile(wb, `6S-Audit_${lokasiNama}_${s.tanggal}.xlsx`)
   }
 
@@ -327,6 +341,41 @@ export default function HistoryPage() {
         ? 'linear-gradient(135deg,#3B82F6 0%,#1D4ED8 100%)'
         : 'linear-gradient(135deg,#7C6EF5 0%,#5A4ED4 100%)'
 
+    const legendHtml = (() => {
+      const rows = detailChecklist.map((item, i) => {
+        const isNB    = item.tipe === 'non_bobot'
+        const jawaban = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+        const jawabanStr = isNB
+          ? jawaban.map(j => `${j.label}${j.wajib_komentar ? ' 💬' : ''}`).join(' &nbsp;·&nbsp; ')
+          : String(item.bobot)
+        const tipeBadge = isNB
+          ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dcfce7;color:#15803d">Non-Bobot</span>`
+          : `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;background:#EDE9FF;color:#6455DC">Bobot ${item.bobot}</span>`
+        return `<tr>
+          <td style="text-align:center;color:#9CA3AF">${i + 1}</td>
+          <td style="font-weight:700">${item.item}</td>
+          <td style="color:#6B7280">${item.deskripsi ?? '—'}</td>
+          <td>${tipeBadge}</td>
+          <td style="color:#374151">${jawabanStr}</td>
+        </tr>`
+      }).join('')
+      return `<div style="page-break-before:always;margin-top:0">
+        <div class="tbl-wrap">
+          <div class="tbl-head"><h2>Keterangan Item Checklist</h2><p>${detailChecklist.length} item checklist</p></div>
+          <table>
+            <thead><tr>
+              <th style="width:36px;text-align:center">#</th>
+              <th>Nama Item</th>
+              <th>Deskripsi</th>
+              <th style="width:100px">Tipe</th>
+              <th>Bobot / Pilihan Jawaban</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`
+    })()
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -380,6 +429,7 @@ export default function HistoryPage() {
   <div style="padding:0 16px">${signHtml}</div>
 </div>
 ${warnHtml}
+${legendHtml}
 <script>window.onload=function(){window.print()}<\/script>
 </body>
 </html>`
@@ -822,6 +872,67 @@ ${warnHtml}
                             </div>
                           </div>
                         )}
+
+                        {/* Keterangan checklist */}
+                        {detailChecklist.length > 0 && (() => {
+                          const bobotCount = detailChecklist.filter(i => i.tipe !== 'non_bobot').length
+                          const nbCount    = detailChecklist.filter(i => i.tipe === 'non_bobot').length
+                          return (
+                            <div className="card">
+                              <div className="card-head flex items-center gap-3">
+                                <div className="ico-wrap ico-brand"><span className="material-icons-round">list_alt</span></div>
+                                <div>
+                                  <div className="text-xs font-bold text-ink">Keterangan Item Checklist</div>
+                                  <div className="text-[11px] text-ink-3">{detailChecklist.length} item · {bobotCount} bobot · {nbCount} non-bobot</div>
+                                </div>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-surface">
+                                      <th className="px-2 py-2 text-center font-bold text-ink-2 w-8">#</th>
+                                      <th className="px-2 py-2 text-left font-bold text-ink-2">Nama Item</th>
+                                      <th className="px-2 py-2 text-left font-bold text-ink-2">Deskripsi</th>
+                                      <th className="px-2 py-2 text-left font-bold text-ink-2 whitespace-nowrap">Tipe</th>
+                                      <th className="px-2 py-2 text-left font-bold text-ink-2">Bobot / Pilihan Jawaban</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {detailChecklist.map((item, idx) => {
+                                      const isNB    = item.tipe === 'non_bobot'
+                                      const jawaban = (item.jawaban_custom as CustomAnswer[] | null) ?? []
+                                      return (
+                                        <tr key={item.id} className="border-t border-surface-border">
+                                          <td className="px-2 py-1.5 text-ink-3 text-center">{idx + 1}</td>
+                                          <td className="px-2 py-1.5 font-semibold text-ink">{item.item}</td>
+                                          <td className="px-2 py-1.5 text-ink-3">{item.deskripsi || '—'}</td>
+                                          <td className="px-2 py-1.5 whitespace-nowrap">
+                                            {isNB
+                                              ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">Non-Bobot</span>
+                                              : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-pale text-brand">Bobot {item.bobot}</span>
+                                            }
+                                          </td>
+                                          <td className="px-2 py-1.5">
+                                            {isNB
+                                              ? <div className="flex flex-wrap gap-1">
+                                                  {jawaban.map((j, k) => (
+                                                    <span key={k} className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${j.wajib_komentar ? 'bg-warning/10 text-warning' : 'bg-surface text-ink-3'}`}>
+                                                      {j.label}{j.wajib_komentar ? ' 💬' : ''}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              : <span className="text-ink-2 font-semibold">{item.bobot}</span>
+                                            }
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </>
                     )
                   })()}
